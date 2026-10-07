@@ -1,7 +1,60 @@
 /**
  * Hangout Dinajpur - Travel Guide & District Tracker
- * Verified 28 Spots Database, Direct Gallery Upload & Storage Engine
+ * Firebase Firestore Cloud Database & Gallery Integration
  */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import { getFirestore, doc, getDocFromServer, collection, onSnapshot, setDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+
+const firebaseConfig = {
+  projectId: "smiling-reality-tlxdt",
+  appId: "1:379502472517:web:d894f855b5ee5ad0f0222c",
+  apiKey: "AIzaSyCq0QnGe6EOFhFWY1bcBo-sBULpIzYPd_Q",
+  authDomain: "smiling-reality-tlxdt.firebaseapp.com",
+  firestoreDatabaseId: "ai-studio-hangoutdinajpur-315f418c-9055-4bd5-9efa-ba03568e0d1f",
+  storageBucket: "smiling-reality-tlxdt.firebasestorage.app",
+  messagingSenderId: "379502472517",
+  measurementId: "",
+  oAuthClientId: "379502472517-ibbrcjaid9ljo76nujcj7cs05srl8fua.apps.googleusercontent.com"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+const auth = getAuth(app);
+
+// Firestore Error Handler conforming to FirestoreErrorInfo
+function handleFirestoreError(error, operationType, path) {
+  const errInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid || null,
+      email: auth.currentUser?.email || null,
+      emailVerified: auth.currentUser?.emailVerified || null,
+      isAnonymous: auth.currentUser?.isAnonymous || null,
+      tenantId: auth.currentUser?.tenantId || null,
+      providerInfo: auth.currentUser?.providerData?.map(provider => ({
+        providerId: provider.providerId,
+        email: provider.email,
+      })) || []
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
+
+// Validate connection to Firestore
+async function testConnection() {
+  try {
+    await getDocFromServer(doc(db, 'test', 'connection'));
+  } catch (error) {
+    if (error && error.message && error.message.includes('the client is offline')) {
+      console.warn("Firebase client check:", error);
+    }
+  }
+}
+testConnection();
 
 // 1. All 13 Upazilas of Dinajpur District
 const UPAZILAS = [
@@ -31,8 +84,8 @@ const SPOTS = [
     upazilaBn: 'দিনাজপুর সদর',
     category: 'Nature',
     categoryBn: 'প্রকৃতি ও জলাশয়',
-    lat: 25.647922869743553,
-    lng: 88.63715677504543,
+    lat: 25.64627623013882,
+    lng: 88.65994073399968,
     description: 'দিনাজপুর শহরের সন্নিকটে অবস্থিত এক নয়নাভিরাম ঐতিহাসিক জলাশয় ও দিঘি। শান্ত স্নিগ্ধ পরিবেশ এবং সকাল-বিকালে ভ্রমণপিপাসুদের পদচারণায় এটি মুখরিত থাকে।'
   },
   {
@@ -423,6 +476,243 @@ try {
   console.warn('Photos storage error', e);
 }
 
+// Cloud Spot Photos State (Synced via Firestore)
+let cloudSpotPhotos = {};
+let pendingUpload = null;
+
+// Toast Helper
+window.showToast = function(msg, icon = '✨') {
+  const el = document.getElementById('toastNotification');
+  const msgEl = document.getElementById('toastMessage');
+  const iconEl = document.getElementById('toastIcon');
+  if (!el) return;
+  if (msgEl) msgEl.textContent = msg;
+  if (iconEl) iconEl.textContent = icon;
+  el.classList.remove('opacity-0', 'pointer-events-none', 'translate-y-3');
+  el.classList.add('opacity-100', 'translate-y-0');
+  clearTimeout(window._toastTimeout);
+  window._toastTimeout = setTimeout(() => {
+    el.classList.remove('opacity-100', 'translate-y-0');
+    el.classList.add('opacity-0', 'pointer-events-none', 'translate-y-3');
+  }, 3200);
+};
+
+// Modal Handlers
+window.openUploadAuthModal = function() {
+  const modal = document.getElementById('uploadAuthModal');
+  const nameInput = document.getElementById('uploadModalUserName');
+  if (nameInput) {
+    const currentName = localStorage.getItem('hangout_dinajpur_traveler_name') ||
+                        document.getElementById('travelerNameInput')?.value ||
+                        (auth.currentUser?.displayName || 'Tanjimul Noman');
+    nameInput.value = currentName;
+  }
+  if (modal) {
+    modal.classList.remove('opacity-0', 'pointer-events-none');
+    modal.classList.add('opacity-100');
+  }
+};
+
+window.closeUploadAuthModal = function() {
+  const modal = document.getElementById('uploadAuthModal');
+  if (modal) {
+    modal.classList.remove('opacity-100');
+    modal.classList.add('opacity-0', 'pointer-events-none');
+  }
+  pendingUpload = null;
+};
+
+window.handleGoogleSignIn = async function() {
+  try {
+    const provider = new GoogleAuthProvider();
+    const res = await signInWithPopup(auth, provider);
+    showToast(`স্বাগতম, ${res.user.displayName || 'ভ্রমণকারী'}!`, '👤');
+  } catch (err) {
+    console.error('Google Sign-in failed', err);
+    showToast('গুগল সাইন-ইন বাতিল বা ব্যর্থ হয়েছে', '⚠️');
+  }
+};
+
+window.handleGoogleSignOut = async function() {
+  try {
+    await signOut(auth);
+    showToast('লগআউট সম্পন্ন হয়েছে', '👋');
+  } catch (err) {
+    console.error('Sign-out error', err);
+  }
+};
+
+window.handleModalGoogleLoginAndUpload = async function() {
+  const pending = pendingUpload;
+  const modalInput = document.getElementById('uploadModalUserName');
+  const customName = modalInput ? modalInput.value.trim() : '';
+  closeUploadAuthModal();
+  try {
+    const provider = new GoogleAuthProvider();
+    const res = await signInWithPopup(auth, provider);
+    if (res && res.user && pending) {
+      showToast('লগইন সফল! ক্লাউডে সেভ হচ্ছে...', '☁️');
+      await executeCloudPhotoUpload(pending.spotId, pending.compressedBase64, res.user, customName);
+    }
+  } catch (err) {
+    console.error('Sign-in failed', err);
+    showToast('গুগল সাইন-ইন করা যায়নি', '⚠️');
+  }
+};
+
+window.handleModalSaveLocally = function() {
+  if (pendingUpload) {
+    const modalInput = document.getElementById('uploadModalUserName');
+    const travelerInput = document.getElementById('travelerNameInput');
+    const chosenName = (modalInput && modalInput.value.trim()) ||
+                       (travelerInput && travelerInput.value.trim()) ||
+                       localStorage.getItem('hangout_dinajpur_traveler_name') ||
+                       'ভ্রমণকারী';
+
+    if (chosenName && chosenName !== 'ভ্রমণকারী') {
+      try {
+        localStorage.setItem('hangout_dinajpur_traveler_name', chosenName);
+        if (travelerInput) {
+          travelerInput.value = chosenName;
+          travelerInput.setAttribute('value', chosenName);
+        }
+        const printDisplay = document.getElementById('travelerNamePrintDisplay');
+        if (printDisplay) printDisplay.textContent = chosenName;
+      } catch (e) {}
+    }
+
+    saveSpotPhoto(pendingUpload.spotId, pendingUpload.compressedBase64, chosenName);
+    showToast(`ছবিটি আপনার ফোনে সেভ হয়েছে (${chosenName})`, '📱');
+    if (currentDrawerSpotId === pendingUpload.spotId) {
+      openSpotDrawer(pendingUpload.spotId);
+    }
+    renderSpotCards();
+    renderMapMarkers();
+  }
+  closeUploadAuthModal();
+};
+
+async function executeCloudPhotoUpload(spotId, compressedBase64, user, customName = null) {
+  const photoDocId = `${spotId}_${Date.now()}`;
+  const pathForWrite = `spotPhotos/${photoDocId}`;
+  try {
+    showToast('☁️ ক্লাউড ডাটাবেজে সেভ হচ্ছে...', '⏳');
+    const modalInput = document.getElementById('uploadModalUserName');
+    const travelerInput = document.getElementById('travelerNameInput');
+    const uploaderName = (customName || (modalInput && modalInput.value.trim()) || (travelerInput && travelerInput.value.trim()) || user?.displayName || localStorage.getItem('hangout_dinajpur_traveler_name') || 'ভ্রমণকারী').trim();
+
+    if (uploaderName && uploaderName !== 'ভ্রমণকারী') {
+      try {
+        localStorage.setItem('hangout_dinajpur_traveler_name', uploaderName);
+        if (travelerInput) {
+          travelerInput.value = uploaderName;
+          travelerInput.setAttribute('value', uploaderName);
+        }
+        const printDisplay = document.getElementById('travelerNamePrintDisplay');
+        if (printDisplay) printDisplay.textContent = uploaderName;
+      } catch (e) {}
+    }
+
+    await setDoc(doc(db, 'spotPhotos', photoDocId), {
+      spotId: spotId,
+      photoData: compressedBase64,
+      uploaderName: uploaderName,
+      uploaderUid: user.uid,
+      createdAt: serverTimestamp()
+    });
+    showToast(`✓ ছবি ক্লাউড ডাটাবেজে সেভ হয়েছে! (নাম: ${uploaderName})`, '🎉');
+    if (currentDrawerSpotId === spotId) {
+      openSpotDrawer(spotId);
+    }
+  } catch (err) {
+    handleFirestoreError(err, 'write', pathForWrite);
+  }
+}
+
+async function uploadSpotPhoto(spotId, compressedBase64) {
+  if (auth.currentUser) {
+    const currentName = localStorage.getItem('hangout_dinajpur_traveler_name') || document.getElementById('travelerNameInput')?.value || auth.currentUser.displayName;
+    await executeCloudPhotoUpload(spotId, compressedBase64, auth.currentUser, currentName);
+  } else {
+    pendingUpload = { spotId, compressedBase64 };
+    openUploadAuthModal();
+  }
+}
+
+// Real-time Firestore sync for spotPhotos
+try {
+  onSnapshot(collection(db, 'spotPhotos'), (snapshot) => {
+    cloudSpotPhotos = {};
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      if (data && data.spotId && data.photoData) {
+        cloudSpotPhotos[data.spotId] = {
+          id: docSnap.id,
+          spotId: data.spotId,
+          photoData: data.photoData,
+          uploaderName: data.uploaderName || 'ভ্রমণকারী',
+          uploaderUid: data.uploaderUid || '',
+          caption: data.caption || ''
+        };
+      }
+    });
+    renderSpotCards();
+    renderMapMarkers();
+    if (currentDrawerSpotId) {
+      openSpotDrawer(currentDrawerSpotId);
+    }
+  }, (error) => {
+    handleFirestoreError(error, 'list', 'spotPhotos');
+  });
+} catch (err) {
+  console.error('Error attaching spotPhotos listener', err);
+}
+
+// Auth State Observer
+onAuthStateChanged(auth, async (user) => {
+  const loginBtn = document.getElementById('googleLoginBtn');
+  const profileBadge = document.getElementById('userProfileBadge');
+  const avatarHeader = document.getElementById('userAvatarHeader');
+  const nameHeader = document.getElementById('userNameHeader');
+
+  if (user) {
+    if (loginBtn) loginBtn.classList.add('hidden');
+    if (profileBadge) {
+      profileBadge.classList.remove('hidden');
+      profileBadge.classList.add('flex');
+    }
+    if (avatarHeader) avatarHeader.src = user.photoURL || 'https://api.dicebear.com/7.x/bottts/svg?seed=user';
+    if (nameHeader) nameHeader.textContent = user.displayName ? user.displayName.split(' ')[0] : 'ভ্রমণকারী';
+
+    // Auto-fill poster name if empty
+    const nameInput = document.getElementById('travelerNameInput');
+    if (nameInput && !nameInput.value.trim() && user.displayName) {
+      nameInput.value = user.displayName;
+      try {
+        localStorage.setItem('hangout_dinajpur_traveler_name', user.displayName);
+      } catch (e) {}
+    }
+
+    const avatarImg = document.getElementById('userAvatarImg');
+    const placeholderEl = document.getElementById('userAvatarPlaceholder');
+    if (avatarImg && user.photoURL && avatarImg.classList.contains('hidden')) {
+      avatarImg.src = user.photoURL;
+      avatarImg.classList.remove('hidden');
+      if (placeholderEl) placeholderEl.classList.add('hidden');
+    }
+  } else {
+    if (loginBtn) loginBtn.classList.remove('hidden');
+    if (profileBadge) {
+      profileBadge.classList.remove('flex');
+      profileBadge.classList.add('hidden');
+    }
+  }
+
+  if (currentDrawerSpotId) {
+    openSpotDrawer(currentDrawerSpotId);
+  }
+});
+
 // Category visual icon & color config
 const CATEGORY_META = {
   Historical: { emoji: '🏛️', color: '#b45309', bg: 'bg-amber-50', text: 'text-amber-800', border: 'border-amber-200', gradient: 'from-amber-600 to-amber-800' },
@@ -468,9 +758,13 @@ function compressImageFile(file, maxWidth = 640, quality = 0.72) {
 }
 
 // Save spot photo to localStorage
-function saveSpotPhoto(spotId, base64Data) {
+function saveSpotPhoto(spotId, base64Data, uploaderName = null) {
   try {
-    customSpotPhotos[spotId] = base64Data;
+    const finalUploader = (uploaderName || localStorage.getItem('hangout_dinajpur_traveler_name') || document.getElementById('travelerNameInput')?.value || 'ভ্রমণকারী').trim();
+    customSpotPhotos[spotId] = {
+      photoData: base64Data,
+      uploaderName: finalUploader
+    };
     localStorage.setItem(STORAGE_SPOT_PHOTOS_KEY, JSON.stringify(customSpotPhotos));
   } catch (err) {
     console.error('LocalStorage quota exceeded', err);
@@ -492,7 +786,26 @@ function removeSpotPhoto(spotId) {
 
 // Generate thumbnail HTML for cards & drawers
 function getSpotThumbnailHtml(spot, isDrawer = false) {
-  const photo = customSpotPhotos[spot.id];
+  const cloudItem = cloudSpotPhotos[spot.id];
+  let photo = null;
+  let uploader = null;
+  let isCloud = false;
+
+  if (cloudItem) {
+    photo = cloudItem.photoData;
+    uploader = cloudItem.uploaderName;
+    isCloud = true;
+  } else if (customSpotPhotos[spot.id]) {
+    const local = customSpotPhotos[spot.id];
+    if (typeof local === 'string') {
+      photo = local;
+      uploader = localStorage.getItem('hangout_dinajpur_traveler_name') || 'লোকাল ছবি';
+    } else {
+      photo = local.photoData;
+      uploader = local.uploaderName || localStorage.getItem('hangout_dinajpur_traveler_name') || 'লোকাল ছবি';
+    }
+    isCloud = false;
+  }
   const meta = CATEGORY_META[spot.category] || CATEGORY_META.Historical;
 
   if (photo) {
@@ -500,18 +813,20 @@ function getSpotThumbnailHtml(spot, isDrawer = false) {
       return `
         <div class="relative w-full h-56 rounded-2xl overflow-hidden shadow-sm bg-slate-900 group">
           <img src="${photo}" alt="${spot.nameBn}" class="w-full h-full object-cover" />
-          <div class="absolute bottom-2.5 right-2.5">
-            <span class="px-2 py-1 bg-black/60 backdrop-blur-xs text-white text-[10px] font-bold rounded-lg flex items-center gap-1">
-              ✓ গ্যালারি ছবি
+          <div class="absolute bottom-2.5 right-2.5 flex items-center gap-1.5">
+            <span class="px-2.5 py-1 ${isCloud ? 'bg-blue-600/90' : 'bg-slate-800/90'} backdrop-blur-xs text-white text-[10px] font-bold rounded-lg flex items-center gap-1 shadow-xs">
+              ${isCloud ? '☁️' : '📷'} ${uploader}
             </span>
           </div>
         </div>
       `;
     }
     return `
-      <div class="relative w-20 h-20 sm:w-22 sm:h-22 rounded-xl overflow-hidden shrink-0 bg-slate-100 shadow-2xs">
+      <div class="relative w-20 h-20 sm:w-22 sm:h-22 rounded-xl overflow-hidden shrink-0 bg-slate-900 shadow-2xs">
         <img src="${photo}" alt="${spot.nameBn}" class="w-full h-full object-cover" />
-        <span class="absolute top-1 left-1 px-1 py-0.5 rounded bg-blue-600/80 text-white text-[9px] font-bold">✓</span>
+        <span class="absolute top-1 left-1 px-1.5 py-0.5 rounded-md ${isCloud ? 'bg-blue-600' : 'bg-slate-800'} text-white text-[9px] font-bold truncate max-w-[70px]">
+          ${isCloud ? '☁️' : '📷'} ${uploader}
+        </span>
       </div>
     `;
   }
@@ -631,7 +946,22 @@ function renderMapMarkers() {
       icon: createMarkerIcon(spot.category)
     });
 
-    const photo = customSpotPhotos[spot.id];
+    const cloudItem = cloudSpotPhotos[spot.id];
+    let photo = null;
+    let uploader = null;
+    let isCloud = false;
+
+    if (cloudItem) {
+      photo = cloudItem.photoData;
+      uploader = cloudItem.uploaderName;
+      isCloud = true;
+    } else if (customSpotPhotos[spot.id]) {
+      const local = customSpotPhotos[spot.id];
+      photo = typeof local === 'string' ? local : local.photoData;
+      uploader = typeof local === 'string' ? (localStorage.getItem('hangout_dinajpur_traveler_name') || 'লোকাল ছবি') : (local.uploaderName || 'লোকাল ছবি');
+      isCloud = false;
+    }
+
     const meta = CATEGORY_META[spot.category] || CATEGORY_META.Historical;
 
     const popupHtml = `
@@ -639,7 +969,9 @@ function renderMapMarkers() {
         ${photo ? `
           <div class="h-28 relative overflow-hidden bg-slate-900">
             <img src="${photo}" alt="${spot.nameBn}" class="w-full h-full object-cover" />
-            <span class="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-black/60 text-white">${spot.categoryBn}</span>
+            <span class="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-bold ${isCloud ? 'bg-blue-600/90' : 'bg-slate-800/90'} text-white">
+              ${isCloud ? '☁️' : '📷'} ${uploader}
+            </span>
           </div>
         ` : `
           <div class="h-20 bg-gradient-to-tr ${meta.gradient} p-3 flex items-center justify-center text-white text-center">
@@ -771,7 +1103,8 @@ function renderSpotCards() {
   let html = '';
   filtered.forEach(spot => {
     const meta = CATEGORY_META[spot.category] || CATEGORY_META.Historical;
-    const hasCustomPhoto = !!customSpotPhotos[spot.id];
+    const cloudItem = cloudSpotPhotos[spot.id];
+    const hasCustomPhoto = !!(cloudItem || customSpotPhotos[spot.id]);
 
     html += `
       <div class="group bg-white hover:bg-slate-50/90 rounded-2xl p-3 border border-slate-200/90 hover:border-blue-400 shadow-2xs hover:shadow-xs transition-all duration-300 flex gap-3 items-center">
@@ -800,7 +1133,7 @@ function renderSpotCards() {
             <!-- Direct Gallery Upload button on Card -->
             <label class="text-[11px] font-bold ${hasCustomPhoto ? 'text-emerald-700' : 'text-blue-600'} hover:underline flex items-center gap-1 cursor-pointer">
               <input type="file" accept="image/*" class="hidden" onchange="handleSpotPhotoCardUpload('${spot.id}', event)" />
-              <span>📷 ${hasCustomPhoto ? 'ছবি পরিবর্তন' : 'ছবি আপলোড'}</span>
+              <span>📷 ${hasCustomPhoto ? (cloudItem ? 'ক্লাউড ছবি' : 'ছবি পরিবর্তন') : 'ছবি আপলোড'}</span>
             </label>
             
             <button onclick="selectSpotFromCard('${spot.id}')" class="text-[11px] font-bold text-slate-500 hover:text-blue-600 flex items-center gap-0.5">
@@ -822,13 +1155,12 @@ window.handleSpotPhotoCardUpload = async function(spotId, event) {
 
   try {
     const compressedBase64 = await compressImageFile(file, 640, 0.72);
-    saveSpotPhoto(spotId, compressedBase64);
-    renderSpotCards();
-    renderMapMarkers();
+    await uploadSpotPhoto(spotId, compressedBase64);
   } catch (err) {
     console.error('Photo upload error', err);
     alert('ছবি প্রসেসিংয়ে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।');
   }
+  event.target.value = '';
 };
 
 // Mobile Guide View Switcher (Map vs List)
@@ -938,12 +1270,30 @@ window.openSpotDrawer = function(spotId) {
   }
 
   // Toggle remove photo button visibility
+  const cloudItem = cloudSpotPhotos[spotId];
   const btnRemove = document.getElementById('drawerBtnRemovePhoto');
   if (btnRemove) {
-    if (customSpotPhotos[spotId]) {
+    if ((cloudItem && auth.currentUser && cloudItem.uploaderUid === auth.currentUser.uid) || customSpotPhotos[spotId]) {
       btnRemove.classList.remove('hidden');
     } else {
       btnRemove.classList.add('hidden');
+    }
+  }
+
+  // Subtext indicating cloud vs local
+  const subtext = document.getElementById('drawerUploadSubtext');
+  if (subtext) {
+    if (cloudItem) {
+      subtext.textContent = `ছবি অবদান: ${cloudItem.uploaderName} (ক্লাউড ডাটাবেজ)`;
+    } else if (customSpotPhotos[spotId]) {
+      const local = customSpotPhotos[spotId];
+      const localName = typeof local === 'string' ? (localStorage.getItem('hangout_dinajpur_traveler_name') || 'আপনি') : (local.uploaderName || 'আপনি');
+      subtext.textContent = `ছবি অবদান: ${localName} (ডিভাইস স্টোরেজ)`;
+    } else if (auth.currentUser) {
+      const currentName = localStorage.getItem('hangout_dinajpur_traveler_name') || document.getElementById('travelerNameInput')?.value || auth.currentUser.displayName || 'ভ্রমণকারী';
+      subtext.textContent = `সরাসরি ক্লাউড ডাটাবেজে সেভ হবে (${currentName})`;
+    } else {
+      subtext.textContent = 'আপনার নামসহ সবার সাথে শেয়ার করতে ছবি আপলোড করুন';
     }
   }
 
@@ -988,23 +1338,35 @@ window.handleDrawerPhotoUpload = async function(event) {
 
   try {
     const compressedBase64 = await compressImageFile(file, 640, 0.72);
-    saveSpotPhoto(currentDrawerSpotId, compressedBase64);
-    openSpotDrawer(currentDrawerSpotId); // re-render drawer
-    renderSpotCards();
-    renderMapMarkers();
+    await uploadSpotPhoto(currentDrawerSpotId, compressedBase64);
   } catch (err) {
     console.error('Drawer upload error', err);
     alert('ছবি প্রসেসিংয়ে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।');
   }
+  event.target.value = '';
 };
 
-window.handleDrawerPhotoRemove = function() {
+window.handleDrawerPhotoRemove = async function() {
   if (!currentDrawerSpotId) return;
-  if (confirm('এই স্থানের আপলোডকৃত ছবিটি ডিলিট করতে চান?')) {
-    removeSpotPhoto(currentDrawerSpotId);
-    openSpotDrawer(currentDrawerSpotId); // re-render drawer
-    renderSpotCards();
-    renderMapMarkers();
+  const cloudItem = cloudSpotPhotos[currentDrawerSpotId];
+  if (cloudItem && auth.currentUser && cloudItem.uploaderUid === auth.currentUser.uid) {
+    if (confirm('আপনার আপলোডকৃত ছবিটি ক্লাউড ডাটাবেজ থেকে মুছে ফেলতে চান?')) {
+      const pathForDelete = `spotPhotos/${cloudItem.id}`;
+      try {
+        await deleteDoc(doc(db, 'spotPhotos', cloudItem.id));
+        showToast('ছবিটি ক্লাউড ডাটাবেজ থেকে মুছে ফেলা হয়েছে', '🗑️');
+      } catch (err) {
+        handleFirestoreError(err, 'delete', pathForDelete);
+      }
+    }
+  } else if (customSpotPhotos[currentDrawerSpotId]) {
+    if (confirm('এই স্থানের ছবিটি মুছে ফেলতে চান?')) {
+      removeSpotPhoto(currentDrawerSpotId);
+      showToast('ছবিটি মুছে ফেলা হয়েছে', '🗑️');
+      openSpotDrawer(currentDrawerSpotId);
+      renderSpotCards();
+      renderMapMarkers();
+    }
   }
 };
 
@@ -1217,7 +1579,21 @@ function renderTrackerChecklist() {
 
 window.updateTravelerName = function(name) {
   try {
-    localStorage.setItem('hangout_dinajpur_traveler_name', name);
+    const val = (name || '').trim();
+    localStorage.setItem('hangout_dinajpur_traveler_name', val);
+    const input = document.getElementById('travelerNameInput');
+    if (input) {
+      input.value = name;
+      input.setAttribute('value', name);
+    }
+    const printEl = document.getElementById('travelerNamePrintDisplay');
+    if (printEl) {
+      printEl.textContent = val || 'Tanjimul Noman';
+    }
+    const modalInput = document.getElementById('uploadModalUserName');
+    if (modalInput && !modalInput.value) {
+      modalInput.value = val;
+    }
   } catch (e) {
     console.warn(e);
   }
@@ -1229,7 +1605,7 @@ window.handleUserPhotoUpload = async function(event) {
   if (!file) return;
 
   try {
-    const compressed = await compressImageFile(file, 300, 0.8);
+    const compressed = await compressImageFile(file, 400, 0.85);
     const imgEl = document.getElementById('userAvatarImg');
     const placeholderEl = document.getElementById('userAvatarPlaceholder');
     if (imgEl) {
@@ -1240,26 +1616,82 @@ window.handleUserPhotoUpload = async function(event) {
       placeholderEl.classList.add('hidden');
     }
     localStorage.setItem('hangout_dinajpur_user_avatar', compressed);
+    showToast('প্রোফাইল ছবি সফলভাবে যুক্ত হয়েছে!', '📸');
   } catch (err) {
     console.error('Avatar upload error', err);
+    showToast('ছবি আপলোডে সমস্যা হয়েছে', '⚠️');
   }
 };
 
 // Export Handlers: PDF & PNG/JPG
 window.triggerPrintPoster = function() {
+  const nameInput = document.getElementById('travelerNameInput');
+  const printEl = document.getElementById('travelerNamePrintDisplay');
+  const cleanName = ((nameInput ? nameInput.value : '') || localStorage.getItem('hangout_dinajpur_traveler_name') || 'Tanjimul Noman').trim();
+  if (printEl) printEl.textContent = cleanName;
+  if (nameInput) nameInput.setAttribute('value', cleanName);
+
+  // Set document title temporarily so saved PDF filename has the user's name
+  const originalTitle = document.title;
+  document.title = `Hangout-Dinajpur-${cleanName.replace(/[\s/\\?%*:|"<>]+/g, '-')}-Certificate`;
   window.print();
+  setTimeout(() => {
+    document.title = originalTitle;
+  }, 1000);
 };
 
-window.triggerDownloadImagePoster = function() {
+window.triggerDownloadPoster = function(format = 'png') {
   const posterEl = document.getElementById('printablePoster');
   if (!posterEl) return;
 
-  const btn = document.getElementById('btnDownloadImage');
+  const isJpg = format === 'jpg';
+  const btnId = isJpg ? 'btnDownloadJpg' : 'btnDownloadImage';
+  const btn = document.getElementById(btnId);
   const originalHtml = btn ? btn.innerHTML : '';
   if (btn) {
     btn.innerHTML = '<span>⏳</span> তৈরি হচ্ছে...';
     btn.disabled = true;
   }
+
+  // Sync traveler name for clean export
+  const nameInput = document.getElementById('travelerNameInput');
+  const nameDisplay = document.getElementById('travelerNamePrintDisplay');
+  const cleanName = ((nameInput ? nameInput.value : '') || localStorage.getItem('hangout_dinajpur_traveler_name') || 'Tanjimul Noman').trim();
+  
+  if (nameDisplay) {
+    nameDisplay.textContent = cleanName;
+    nameDisplay.classList.remove('hidden');
+    nameDisplay.style.display = 'inline-block';
+  }
+  if (nameInput) {
+    nameInput.setAttribute('value', cleanName);
+    nameInput.style.display = 'none';
+  }
+
+  // Temporarily hide elements that shouldn't appear in exported image
+  const elementsToHide = posterEl.querySelectorAll('.no-export, .no-print');
+  elementsToHide.forEach(el => {
+    el.setAttribute('data-prev-disp', el.style.display || '');
+    el.style.display = 'none';
+  });
+
+  const cleanup = () => {
+    if (nameDisplay) {
+      nameDisplay.classList.add('hidden');
+      nameDisplay.style.display = '';
+    }
+    if (nameInput) {
+      nameInput.style.display = '';
+    }
+    elementsToHide.forEach(el => {
+      el.style.display = el.getAttribute('data-prev-disp') || '';
+      el.removeAttribute('data-prev-disp');
+    });
+    if (btn) {
+      btn.innerHTML = originalHtml;
+      btn.disabled = false;
+    }
+  };
 
   // Use html2canvas to capture poster with high DPI
   if (typeof html2canvas !== 'undefined') {
@@ -1270,26 +1702,30 @@ window.triggerDownloadImagePoster = function() {
       backgroundColor: '#ffffff'
     }).then(canvas => {
       const link = document.createElement('a');
-      const travelerName = (document.getElementById('travelerNameInput')?.value || 'Traveler').trim().replace(/\s+/g, '-');
-      link.download = `Hangout-Dinajpur-${travelerName}-Poster.png`;
-      link.href = canvas.toDataURL('image/png');
+      const safeName = cleanName.replace(/[\s/\\?%*:|"<>]+/g, '-');
+      const ext = isJpg ? 'jpg' : 'png';
+      link.download = `Hangout-Dinajpur-${safeName}-Certificate.${ext}`;
+      link.href = canvas.toDataURL(isJpg ? 'image/jpeg' : 'image/png', isJpg ? 0.95 : 1.0);
       link.click();
-
-      if (btn) {
-        btn.innerHTML = originalHtml;
-        btn.disabled = false;
-      }
+      cleanup();
+      showToast(`✓ ${isJpg ? 'JPG' : 'PNG'} সার্টিফিকেট ডাউনলোড সম্পন্ন!`, '🎉');
     }).catch(err => {
       console.error('html2canvas error', err);
       alert('ইমেজ ডাউনলোড তৈরিতে সমস্যা হয়েছে। অনুগ্রহ করে PDF ডাউনলোড ব্যবহার করুন।');
-      if (btn) {
-        btn.innerHTML = originalHtml;
-        btn.disabled = false;
-      }
+      cleanup();
     });
   } else {
+    cleanup();
     window.print();
   }
+};
+
+window.triggerDownloadImagePoster = function() {
+  window.triggerDownloadPoster('png');
+};
+
+window.triggerDownloadJpgPoster = function() {
+  window.triggerDownloadPoster('jpg');
 };
 
 // ==========================================
@@ -1383,9 +1819,15 @@ document.addEventListener('DOMContentLoaded', () => {
   // Restore saved traveler name
   try {
     const savedName = localStorage.getItem('hangout_dinajpur_traveler_name');
-    if (savedName) {
-      const nameInput = document.getElementById('travelerNameInput');
-      if (nameInput) nameInput.value = savedName;
+    const nameInput = document.getElementById('travelerNameInput');
+    const printEl = document.getElementById('travelerNamePrintDisplay');
+    const displayName = savedName || (nameInput ? nameInput.value : 'Tanjimul Noman');
+    if (nameInput) {
+      nameInput.value = displayName;
+      nameInput.setAttribute('value', displayName);
+    }
+    if (printEl) {
+      printEl.textContent = displayName;
     }
   } catch (e) {
     console.warn(e);

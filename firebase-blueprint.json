@@ -1,0 +1,82 @@
+{
+  "entities": {
+    "spotPhoto": {
+      "title": "Spot Photo",
+      "description": "User-contributed photo for a tourist spot in Dinajpur",
+      "type": "object",
+      "properties": {
+        "spotId": {
+          "type": "string",
+          "description": "The unique ID of the spot",
+          "maxLength": 64
+        },
+        "photoData": {
+          "type": "string",
+          "description": "Base64 encoded JPEG data URL of the compressed image",
+          "maxLength": 150000
+        },
+        "uploaderName": {
+          "type": "string",
+          "description": "Display name of the traveler",
+          "maxLength": 100
+        },
+        "uploaderUid": {
+          "type": "string",
+          "description": "Firebase Auth UID of the uploader",
+          "maxLength": 128
+        },
+        "caption": {
+          "type": "string",
+          "description": "Optional short caption",
+          "maxLength": 200
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Creation timestamp"
+        }
+      },
+      "required": ["spotId", "photoData", "uploaderName", "uploaderUid", "createdAt"]
+    },
+    "travelerProfile": {
+      "title": "Traveler Profile",
+      "description": "Traveler progress and tracker state in Dinajpur",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Firebase Auth UID",
+          "maxLength": 128
+        },
+        "name": {
+          "type": "string",
+          "description": "Traveler name",
+          "maxLength": 100
+        },
+        "avatar": {
+          "type": "string",
+          "description": "Avatar image data URL",
+          "maxLength": 150000
+        },
+        "visitedUpazilas": {
+          "type": "array",
+          "description": "List of visited upazila IDs"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Last update timestamp"
+        }
+      },
+      "required": ["userId", "name", "visitedUpazilas", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/spotPhotos/{photoId}": {
+      "schema": "spotPhoto",
+      "description": "Public gallery of spot photos contributed by travelers"
+    },
+    "/travelers/{userId}": {
+      "schema": "travelerProfile",
+      "description": "Traveler profiles and visited upazilas tracker data"
+    }
+  }
+}

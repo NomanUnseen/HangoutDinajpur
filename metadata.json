@@ -1,0 +1,7 @@
+{
+  "name": "Hangout Dinajpur - দিনাজপুর ট্রাভেল গাইড ও ট্র্যাকার",
+  "description": "Hangout Dinajpur: দিনাজপুর জেলার সকল ঐতিহাসিক ও দর্শনীয় স্থান, ইন্টারেক্টিভ ম্যাপ গাইড এবং ডিস্ট্রিক্ট ট্র্যাকার পোস্টার।",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+

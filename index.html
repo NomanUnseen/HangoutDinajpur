@@ -10,7 +10,7 @@
   <meta property="og:type" content="website" />
   <meta name="twitter:card" content="summary_large_image" />
 
-  <!-- Google Fonts -->
+  <!-- Google Fonts: Inter & Hind Siliguri -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -128,7 +128,7 @@
                 Hangout Dinajpur
               </h1>
               <span class="hidden md:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                ভেরিফাইড ২৮টি স্থান • ১৩টি উপজেলা
+                ভেরিফাইড ২৯টি স্থান • ১৩টি উপজেলা
               </span>
             </div>
             <p class="text-[10px] sm:text-xs font-medium text-slate-500 truncate leading-none mt-0.5">দিনাজপুর ট্রাভেল গাইড ও ট্র্যাকার</p>
@@ -199,7 +199,7 @@
         <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 text-xs font-semibold">
           <button onclick="setCategoryFilter('all')" data-cat="all" class="cat-pill active shrink-0 px-2.5 py-1.5 rounded-lg bg-blue-600 text-white shadow-2xs flex items-center gap-1">
             <span>সব ধরণ</span>
-            <span id="countCatAll" class="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20">28</span>
+            <span id="countCatAll" class="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20">29</span>
           </button>
           <button onclick="setCategoryFilter('Historical')" data-cat="Historical" class="cat-pill shrink-0 px-2.5 py-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 flex items-center gap-1">
             <span>🏛️ ঐতিহাসিক</span>
@@ -207,7 +207,7 @@
           </button>
           <button onclick="setCategoryFilter('Nature')" data-cat="Nature" class="cat-pill shrink-0 px-2.5 py-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 flex items-center gap-1">
             <span>🌲 প্রকৃতি</span>
-            <span id="countCatNature" class="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-200 text-slate-600">10</span>
+            <span id="countCatNature" class="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-200 text-slate-600">11</span>
           </button>
           <button onclick="setCategoryFilter('Religious')" data-cat="Religious" class="cat-pill shrink-0 px-2.5 py-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 flex items-center gap-1">
             <span>🕌 ধর্মীয়</span>
@@ -239,7 +239,7 @@
           <span>🗺️</span> ম্যাপ দেখুন
         </button>
         <button id="mobileViewToggleList" onclick="setMobileGuideView('list')" class="flex-1 py-1.5 text-xs font-bold rounded-lg text-slate-600 flex items-center justify-center gap-1">
-          <span>📋</span> স্থান তালিকা (<span id="mobileSpotCountLabel">28</span>)
+          <span>📋</span> স্থান তালিকা (<span id="mobileSpotCountLabel">29</span>)
         </button>
       </div>
 
@@ -249,7 +249,7 @@
         <!-- Spots Explorer List (5 cols on LG) -->
         <div id="spotsListColumn" class="hidden lg:flex lg:col-span-5 flex-col gap-2.5 min-h-[380px] lg:h-[700px]">
           <div class="flex items-center justify-between text-xs font-medium text-slate-500 px-1">
-            <span>ভেরিফাইড স্থান: <strong id="spotCountBadge" class="text-blue-700 font-bold">28 টি স্থান</strong></span>
+            <span>ভেরিফাইড স্থান: <strong id="spotCountBadge" class="text-blue-700 font-bold">29 টি স্থান</strong></span>
             <span class="text-slate-400 text-[11px]">ক্লিক করে ম্যাপে জুম ও ছবি যোগ</span>
           </div>
 
@@ -823,6 +823,18 @@ const SPOTS = [
     lat: 25.670865904290107,
     lng: 88.66115215410035,
     description: 'সুলতানি আমলের প্রাচীন ঐতিহ্যবাহী মাজার ও মসজিদ প্রাঙ্গণ। ৪০ জন ইসলাম প্রচারক শহীদের পবিত্র সমাধিস্থল যা ভক্ত ও পর্যটকদের শ্রদ্ধার স্থান।'
+  },
+  {
+    id: 'ramsagar',
+    nameBn: 'রামসাগর জাতীয় উদ্যান',
+    nameEn: 'Ramsagar National Park',
+    upazilaId: 'sadar',
+    upazilaBn: 'দিনাজপুর সদর',
+    category: 'Nature',
+    categoryBn: 'জাতীয় উদ্যান ও ঐতিহাসিক দিঘি',
+    lat: 25.55331525144556,
+    lng: 88.62367616634857,
+    description: 'বাংলাদেশের বৃহত্তম মানবনির্মিত ঐতিহাসিক দিঘি ও অন্যতম প্রধান জাতীয় উদ্যান। অষ্টাদশ শতকে রাজা রামনাথ কর্তৃক খননকৃত এই সুবিশাল দিঘি, চারপাশের ঘন বনভূমি ও শান্ত স্নিগ্ধ পরিবেশ পর্যটকদের প্রধানতম আকর্ষণ।'
   },
   {
     id: 'matasagar',

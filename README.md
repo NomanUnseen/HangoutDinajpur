@@ -31,7 +31,7 @@ This project runs standalone with zero installation required:
 
 1. Clone or download the repository:
    ```bash
-   git clone https://github.com/your-username/HangoutDinajpur.git
+   git clone https://github.com/NomanUnseen/HangoutDinajpur.git
    ```
 2. Double-click `index.html` to open it in any modern web browser (Chrome, Edge, Safari, Firefox). No build step or local server is needed.
 

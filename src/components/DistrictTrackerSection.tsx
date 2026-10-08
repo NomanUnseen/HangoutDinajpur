@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
-import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 import {
   Search,
   User,
   Download,
-  Printer,
+  FileDown,
   Check,
-  Sparkles,
   Award,
   MapPin,
 } from 'lucide-react';
@@ -50,9 +49,24 @@ export const DistrictTrackerSection: React.FC<DistrictTrackerSectionProps> = ({
 }) => {
   const [upazilaSearch, setUpazilaSearch] = useState('');
   const [showUpazilaNames, setShowUpazilaNames] = useState(true);
-  const [exportingFormat, setExportingFormat] = useState<'png' | 'jpg' | null>(
-    null
-  );
+  const [exportingFormat, setExportingFormat] = useState<
+    'png' | 'jpg' | 'pdf' | null
+  >(null);
+  const [loadedAvatarImg, setLoadedAvatarImg] =
+    useState<HTMLImageElement | null>(null);
+
+  // Preload travelerAvatar into an HTMLImageElement so canvas rendering is 100% synchronous
+  React.useEffect(() => {
+    if (!travelerAvatar) {
+      setLoadedAvatarImg(null);
+      return;
+    }
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => setLoadedAvatarImg(img);
+    img.onerror = () => setLoadedAvatarImg(null);
+    img.src = travelerAvatar;
+  }, [travelerAvatar]);
 
   const currentTheme: MapTheme =
     MAP_THEMES.find((t) => t.id === selectedThemeId) || MAP_THEMES[0];
@@ -94,46 +108,409 @@ export const DistrictTrackerSection: React.FC<DistrictTrackerSectionProps> = ({
     }
   );
 
-  const handlePrintPoster = () => {
-    const cleanName = (travelerName || 'Traveler').trim();
-    const originalTitle = document.title;
-    document.title = `Hangout-Dinajpur-${cleanName.replace(/\s+/g, '-')}-Map`;
-    window.print();
-    setTimeout(() => {
-      document.title = originalTitle;
-    }, 1000);
+  // Helper to draw rounded rectangles on Canvas 2D
+  const drawRoundedRect = (
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    r: number
+  ) => {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
   };
 
-  const handleDownloadPoster = async (format: 'png' | 'jpg') => {
-    const posterEl = document.getElementById('printablePoster');
-    if (!posterEl) return;
+  // Helper to draw the avatar or initial safely without tainting the canvas
+  const drawAvatarOnCanvas = (
+    ctx: CanvasRenderingContext2D,
+    avatarCX: number,
+    avatarCY: number,
+    avatarR: number,
+    fontStack: string,
+    includeImage: boolean
+  ) => {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(avatarCX, avatarCY, avatarR, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.fillStyle = '#ecfdf5';
+    ctx.fill();
+    ctx.clip();
 
+    let drewImg = false;
+    if (includeImage && loadedAvatarImg) {
+      try {
+        ctx.drawImage(
+          loadedAvatarImg,
+          avatarCX - avatarR,
+          avatarCY - avatarR,
+          avatarR * 2,
+          avatarR * 2
+        );
+        drewImg = true;
+      } catch {
+        drewImg = false;
+      }
+    }
+
+    if (!drewImg) {
+      ctx.fillStyle = '#047857';
+      ctx.font = `800 22px ${fontStack}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const initial = (travelerName.trim() || 'D').charAt(0).toUpperCase();
+      ctx.fillText(initial, avatarCX, avatarCY + 2);
+    }
+    ctx.restore();
+
+    // Avatar Ring
+    ctx.strokeStyle = '#10b981';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(avatarCX, avatarCY, avatarR, 0, Math.PI * 2);
+    ctx.stroke();
+  };
+
+  // Native High-Resolution Canvas Poster Renderer (100% Synchronous, zero async delay)
+  const renderHighResPosterCanvas = (
+    includeAvatarImage = true
+  ): HTMLCanvasElement => {
+    const W = 1200;
+    const H = 1520;
+    const canvas = document.createElement('canvas');
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas 2D context unavailable');
+
+    const fontStack = "'Hind Siliguri', 'Plus Jakarta Sans', sans-serif";
+
+    // 1. Background Fill
+    ctx.fillStyle = currentTheme.canvasBg;
+    ctx.fillRect(0, 0, W, H);
+
+    // Outer Subtle Border
+    ctx.strokeStyle = currentTheme.isDark ? '#1e293b' : '#e2e8f0';
+    ctx.lineWidth = 4;
+    drawRoundedRect(ctx, 24, 24, W - 48, H - 48, 32);
+    ctx.stroke();
+
+    // 2. Header Section
+    const headerY = 68;
+    // Pin Icon Box
+    ctx.fillStyle = currentTheme.accentColor;
+    drawRoundedRect(ctx, 64, headerY, 68, 68, 18);
+    ctx.fill();
+
+    // Simple Map Pin inside Box
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(64 + 34, headerY + 28, 12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = currentTheme.accentColor;
+    ctx.beginPath();
+    ctx.arc(64 + 34, headerY + 28, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(64 + 24, headerY + 34);
+    ctx.lineTo(64 + 34, headerY + 52);
+    ctx.lineTo(64 + 44, headerY + 34);
+    ctx.closePath();
+    ctx.fill();
+
+    // Title & Subtitle
+    ctx.textAlign = 'left';
+    ctx.fillStyle = currentTheme.textColor;
+    ctx.font = `900 34px ${fontStack}`;
+    ctx.fillText(
+      lang === 'bn' ? 'আমার দেখা দিনাজপুর' : 'My Dinajpur Travel Map',
+      152,
+      headerY + 36
+    );
+
+    ctx.fillStyle = currentTheme.subTextColor;
+    ctx.font = `600 19px ${fontStack}`;
+    ctx.fillText(
+      lang === 'bn'
+        ? '১৩টি উপজেলার ভ্রমণ ট্র্যাকার ও সার্টিফিকেট'
+        : '13 Upazilas Exploration Tracker & Certificate',
+      152,
+      headerY + 64
+    );
+
+    // Traveler Badge Box on Right
+    const badgeW = 410;
+    const badgeH = 82;
+    const badgeX = W - 64 - badgeW;
+    const badgeY = headerY - 6;
+
+    ctx.fillStyle = currentTheme.isDark ? '#0f172a' : '#ffffff';
+    ctx.strokeStyle = currentTheme.isDark ? '#1e293b' : '#e2e8f0';
+    ctx.lineWidth = 2;
+    drawRoundedRect(ctx, badgeX, badgeY, badgeW, badgeH, 20);
+    ctx.fill();
+    ctx.stroke();
+
+    // Avatar Circle
+    const avatarCX = badgeX + 44;
+    const avatarCY = badgeY + badgeH / 2;
+    const avatarR = 26;
+
+    drawAvatarOnCanvas(
+      ctx,
+      avatarCX,
+      avatarCY,
+      avatarR,
+      fontStack,
+      includeAvatarImage
+    );
+
+    // Traveler Name & Rank
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = currentTheme.textColor;
+    ctx.font = `800 21px ${fontStack}`;
+    const displayTravelerName =
+      travelerName.trim() ||
+      (lang === 'bn' ? 'ভ্রমণকারী' : 'Dinajpur Explorer');
+    ctx.fillText(displayTravelerName.slice(0, 26), badgeX + 84, badgeY + 36);
+
+    ctx.fillStyle = currentTheme.subTextColor;
+    ctx.font = `600 15px ${fontStack}`;
+    const cleanRank = getRankLabel().replace('🏆', '').trim();
+    ctx.fillText(`${cleanRank} · ${todayFormatted}`, badgeX + 84, badgeY + 60);
+
+    // Header Divider Line
+    ctx.strokeStyle = currentTheme.isDark ? '#1e293b' : '#e2e8f0';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(64, 172);
+    ctx.lineTo(W - 64, 172);
+    ctx.stroke();
+
+    // 3. Legend & Completion Row
+    const legendY = 216;
+    // Visited Dot
+    ctx.fillStyle = currentTheme.visitedFillStart;
+    ctx.beginPath();
+    ctx.arc(76, legendY - 6, 9, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = currentTheme.textColor;
+    ctx.font = `700 18px ${fontStack}`;
+    ctx.textAlign = 'left';
+    const visitedLegendText = `${
+      lang === 'bn' ? 'ভ্রমণ সম্পন্ন' : 'Visited'
+    } (${formatNumber(visitedCount, lang)})`;
+    ctx.fillText(visitedLegendText, 94, legendY);
+
+    // Unvisited Dot
+    const unvisitedOffsetX = 94 + ctx.measureText(visitedLegendText).width + 36;
+    ctx.fillStyle = currentTheme.unvisitedFill;
+    ctx.strokeStyle = '#94a3b8';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(unvisitedOffsetX, legendY - 6, 9, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = currentTheme.textColor;
+    const unvisitedLegendText = `${
+      lang === 'bn' ? 'ভ্রমণ বাকি' : 'Unvisited'
+    } (${formatNumber(totalUpazilas - visitedCount, lang)})`;
+    ctx.fillText(unvisitedLegendText, unvisitedOffsetX + 18, legendY);
+
+    // Completion % on Right
+    ctx.textAlign = 'right';
+    ctx.fillStyle = currentTheme.accentColor;
+    ctx.font = `800 20px ${fontStack}`;
+    ctx.fillText(
+      `${formatNumber(progressPercent, lang)}% ${
+        lang === 'bn' ? 'সম্পন্ন' : 'Completed'
+      }`,
+      W - 64,
+      legendY
+    );
+
+    // 4. Draw the 13-Upazila SVG Map scaled onto the Canvas
+    const scale = 1.82;
+    const mapW = 500 * scale;
+    const mapX = (W - mapW) / 2;
+    const mapY = 245;
+
+    ctx.save();
+    ctx.translate(mapX, mapY);
+    ctx.scale(scale, scale);
+
+    const visitedGradient = ctx.createLinearGradient(0, 0, 500, 620);
+    visitedGradient.addColorStop(0, currentTheme.visitedFillStart);
+    visitedGradient.addColorStop(1, currentTheme.visitedFillEnd);
+
+    UPAZILAS.forEach((u) => {
+      const isVisited = visitedUpazilas.includes(u.id);
+      const pairs = u.points
+        .trim()
+        .split(/\s+/)
+        .map((pair) => pair.split(',').map(Number));
+
+      if (pairs.length > 0) {
+        ctx.beginPath();
+        pairs.forEach(([px, py], idx) => {
+          if (idx === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        });
+        ctx.closePath();
+
+        ctx.fillStyle = isVisited
+          ? visitedGradient
+          : currentTheme.unvisitedFill;
+        ctx.fill();
+
+        ctx.strokeStyle = isVisited
+          ? currentTheme.visitedStroke
+          : currentTheme.unvisitedStroke;
+        ctx.lineWidth = isVisited ? 2.5 : 2;
+        ctx.lineJoin = 'round';
+        ctx.stroke();
+      }
+
+      if (showUpazilaNames) {
+        const primaryTextColor = isVisited
+          ? '#ffffff'
+          : currentTheme.isDark
+          ? '#e2e8f0'
+          : '#1e293b';
+        const secondaryTextColor = isVisited
+          ? 'rgba(255,255,255,0.88)'
+          : currentTheme.isDark
+          ? '#94a3b8'
+          : '#64748b';
+
+        ctx.textAlign = 'center';
+        ctx.fillStyle = primaryTextColor;
+        ctx.font = `700 12px ${fontStack}`;
+        ctx.fillText(lang === 'bn' ? u.nameBn : u.nameEn, u.textX, u.textY);
+
+        ctx.fillStyle = secondaryTextColor;
+        ctx.font = `500 9px ${fontStack}`;
+        ctx.fillText(lang === 'bn' ? u.nameEn : u.nameBn, u.textX, u.subY);
+      }
+
+      if (isVisited) {
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `800 13px ${fontStack}`;
+        ctx.fillText('✓', u.textX, u.markY);
+      }
+    });
+
+    ctx.restore();
+
+    // 5. Footer Divider & Credits
+    const footerLineY = H - 108;
+    ctx.strokeStyle = currentTheme.isDark ? '#1e293b' : '#e2e8f0';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(64, footerLineY);
+    ctx.lineTo(W - 64, footerLineY);
+    ctx.stroke();
+
+    ctx.textAlign = 'left';
+    ctx.fillStyle = currentTheme.textColor;
+    ctx.font = `800 19px ${fontStack}`;
+    ctx.fillText('Hangout Dinajpur', 64, footerLineY + 42);
+
+    const brandW = ctx.measureText('Hangout Dinajpur').width;
+    ctx.fillStyle = currentTheme.subTextColor;
+    ctx.font = `500 18px ${fontStack}`;
+    ctx.fillText(
+      `  ·  ${
+        lang === 'bn'
+          ? 'দিনাজপুর ভ্রমণ গাইড ও ট্র্যাকার'
+          : 'Dinajpur Travel Guide & District Tracker'
+      }`,
+      64 + brandW,
+      footerLineY + 42
+    );
+
+    ctx.textAlign = 'right';
+    ctx.fillStyle = currentTheme.subTextColor;
+    ctx.font = `600 18px ${fontStack}`;
+    ctx.fillText(
+      `${formatNumber(visitedCount, lang)} / ${formatNumber(
+        totalUpazilas,
+        lang
+      )} ${
+        lang === 'bn' ? 'উপজেলা ভ্রমণ সম্পন্ন' : 'Upazilas Visited'
+      } (${formatNumber(progressPercent, lang)}%)`,
+      W - 64,
+      footerLineY + 42
+    );
+
+    return canvas;
+  };
+
+  const handleDownloadPoster = (format: 'png' | 'jpg' | 'pdf') => {
     setExportingFormat(format);
     try {
-      const canvas = await html2canvas(posterEl, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: currentTheme.isDark ? '#0f172a' : '#ffffff',
-      });
-      const link = document.createElement('a');
+      let canvas = renderHighResPosterCanvas(true);
+      const mimeType = format === 'png' ? 'image/png' : 'image/jpeg';
+      const quality = format === 'png' ? 1.0 : 0.95;
+
+      let dataUrl: string;
+      try {
+        dataUrl = canvas.toDataURL(mimeType, quality);
+      } catch {
+        // Fallback if external avatar image tainted the canvas
+        canvas = renderHighResPosterCanvas(false);
+        dataUrl = canvas.toDataURL(mimeType, quality);
+      }
+
       const cleanName = (travelerName || 'Traveler')
         .trim()
         .replace(/[\s/\\?%*:|"<>]+/g, '-');
-      link.download = `Hangout-Dinajpur-${cleanName}.${format}`;
-      link.href = canvas.toDataURL(
-        format === 'jpg' ? 'image/jpeg' : 'image/png',
-        format === 'jpg' ? 0.95 : 1.0
-      );
-      link.click();
+      const fileNameBase = `Hangout-Dinajpur-${cleanName || 'Traveler'}`;
+
+      if (format === 'pdf') {
+        const pdf = new jsPDF({
+          orientation: 'portrait',
+          unit: 'px',
+          format: [canvas.width, canvas.height],
+        });
+        pdf.addImage(dataUrl, 'JPEG', 0, 0, canvas.width, canvas.height);
+        pdf.save(`${fileNameBase}.pdf`);
+      } else {
+        const link = document.createElement('a');
+        link.href = dataUrl;
+        link.download = `${fileNameBase}.${format}`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+
       onShowToast(
         lang === 'bn'
-          ? `আপনার ভ্রমণ ম্যাপ (${format.toUpperCase()}) ডাউনলোড হয়েছে!`
+          ? `আপনার ভ্রমণ ম্যাপ (${format.toUpperCase()}) সফলভাবে ডাউনলোড হয়েছে!`
           : `Your travel map (${format.toUpperCase()}) has been downloaded!`
       );
     } catch (err) {
       console.error('Export error:', err);
-      handlePrintPoster();
+      onShowToast(
+        lang === 'bn'
+          ? 'ডাউনলোড করতে সমস্যা হয়েছে, আবার চেষ্টা করুন।'
+          : 'Download failed, please try again.'
+      );
     } finally {
       setExportingFormat(null);
     }
@@ -328,11 +705,18 @@ export const DistrictTrackerSection: React.FC<DistrictTrackerSectionProps> = ({
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  onClick={handlePrintPoster}
-                  className="px-3 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                  disabled={exportingFormat !== null}
+                  onClick={() => handleDownloadPoster('pdf')}
+                  className="px-3 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap disabled:opacity-50"
                 >
-                  <Printer className="w-3.5 h-3.5" />
-                  <span>PDF</span>
+                  <FileDown className="w-3.5 h-3.5" />
+                  <span>
+                    {exportingFormat === 'pdf'
+                      ? lang === 'bn'
+                        ? 'তৈরি হচ্ছে...'
+                        : 'Saving...'
+                      : 'PDF'}
+                  </span>
                 </button>
                 <button
                   type="button"

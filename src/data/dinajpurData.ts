@@ -1,3 +1,7 @@
+import kantajiImg from '../assets/images/kantaji_temple_dinajpur_1791465433019.jpg';
+import ramsagarImg from '../assets/images/ramsagar_lake_dinajpur_1791465448567.jpg';
+import rajbariImg from '../assets/images/dinajpur_rajbari_palace_1791465460012.jpg';
+
 export type Language = 'bn' | 'en';
 
 export interface Upazila {
@@ -48,9 +52,9 @@ export interface MapTheme {
   isDark?: boolean;
 }
 
-export const KANTAJI_IMAGE = '/src/assets/images/kantaji_temple_dinajpur_1791465433019.jpg';
-export const RAMSAGAR_IMAGE = '/src/assets/images/ramsagar_lake_dinajpur_1791465448567.jpg';
-export const RAJBARI_IMAGE = '/src/assets/images/dinajpur_rajbari_palace_1791465460012.jpg';
+export const KANTAJI_IMAGE = kantajiImg;
+export const RAMSAGAR_IMAGE = ramsagarImg;
+export const RAJBARI_IMAGE = rajbariImg;
 
 export const MAP_THEMES: MapTheme[] = [
   {

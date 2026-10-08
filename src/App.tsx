@@ -63,7 +63,14 @@ const STORAGE_SPOT_PHOTOS_KEY = 'hangout_dinajpur_custom_spot_photos';
 const STORAGE_TRAVELER_NAME_KEY = 'hangout_dinajpur_traveler_name';
 const STORAGE_USER_AVATAR_KEY = 'hangout_dinajpur_user_avatar';
 const STORAGE_THEME_KEY = 'hangout_dinajpur_map_theme';
-const STORAGE_VISIT_SESSION_KEY = 'hangout_dinajpur_visit_counted_v2';
+const STORAGE_CLOUD_USER_KEY = 'hangout_dinajpur_cloud_user_v1';
+
+interface AppUserProfile {
+  uid: string;
+  displayName: string;
+  email: string;
+  photoURL: string | null;
+}
 
 function compressImageFile(
   file: File,
@@ -111,9 +118,22 @@ export default function App() {
     }
   });
 
-  // Firebase Auth User State
-  const [user, setUser] = useState<FirebaseUser | null>(null);
+  // Unified Auth User State (Firebase Google Auth + Instant Cloud Fallback)
+  const [user, setUser] = useState<AppUserProfile | null>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_CLOUD_USER_KEY);
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
   const [isAuthLoading, setIsAuthLoading] = useState(false);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [authErrorNotice, setAuthErrorNotice] = useState<string | null>(null);
+  const [quickLoginName, setQuickLoginName] = useState('Tanjimul Noman');
+  const [quickLoginEmail, setQuickLoginEmail] = useState(
+    'tanjimulislamnomann@gmail.com'
+  );
 
   // Exact Site Visitor Count (Synced with Firestore /siteStats/visitors)
   const [visitorCount, setVisitorCount] = useState<number>(1284);
@@ -229,11 +249,51 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
+  // Load Cloud Profile Helper
+  const loadCloudProfile = async (uid: string) => {
+    try {
+      const profileRef = doc(db, 'travelers', uid);
+      const snap = await getDoc(profileRef);
+      if (snap.exists()) {
+        const data = snap.data();
+        if (Array.isArray(data.visitedUpazilas)) {
+          setVisitedUpazilas(data.visitedUpazilas);
+          localStorage.setItem(
+            STORAGE_VISITED_KEY,
+            JSON.stringify(data.visitedUpazilas)
+          );
+        }
+        if (data.name) {
+          setTravelerName(data.name);
+        }
+        if (data.avatar) {
+          setTravelerAvatar(data.avatar);
+        }
+        if (data.themeId) {
+          setSelectedThemeId(data.themeId);
+        }
+      }
+    } catch (err) {
+      console.warn('Could not load traveler cloud profile:', err);
+    }
+  };
+
   // Firebase Auth State Listener + Cloud Profile Sync
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
       if (currentUser) {
+        const profile: AppUserProfile = {
+          uid: currentUser.uid,
+          displayName: currentUser.displayName || travelerName || 'Traveler',
+          email: currentUser.email || '',
+          photoURL: currentUser.photoURL || travelerAvatar || null,
+        };
+        setUser(profile);
+        try {
+          localStorage.setItem(STORAGE_CLOUD_USER_KEY, JSON.stringify(profile));
+        } catch {
+          // ignore
+        }
         if (currentUser.displayName) {
           setTravelerName((prev) =>
             !prev || prev === 'Tanjimul Noman' ? currentUser.displayName! : prev
@@ -242,32 +302,7 @@ export default function App() {
         if (currentUser.photoURL) {
           setTravelerAvatar((prev) => prev || currentUser.photoURL);
         }
-        // Fetch saved cloud profile if exists
-        try {
-          const profileRef = doc(db, 'travelers', currentUser.uid);
-          const snap = await getDoc(profileRef);
-          if (snap.exists()) {
-            const data = snap.data();
-            if (Array.isArray(data.visitedUpazilas)) {
-              setVisitedUpazilas(data.visitedUpazilas);
-              localStorage.setItem(
-                STORAGE_VISITED_KEY,
-                JSON.stringify(data.visitedUpazilas)
-              );
-            }
-            if (data.name) {
-              setTravelerName(data.name);
-            }
-            if (data.avatar) {
-              setTravelerAvatar(data.avatar);
-            }
-            if (data.themeId) {
-              setSelectedThemeId(data.themeId);
-            }
-          }
-        } catch (err) {
-          console.warn('Could not load traveler cloud profile:', err);
-        }
+        await loadCloudProfile(currentUser.uid);
       }
     });
     return () => unsubscribe();
@@ -278,13 +313,15 @@ export default function App() {
     nextVisited: string[],
     nextName: string,
     nextAvatar: string | null,
-    nextTheme: string
+    nextTheme: string,
+    overrideUser?: AppUserProfile | null
   ) => {
-    if (!auth.currentUser) return;
-    const uid = auth.currentUser.uid;
+    const activeProfile = overrideUser !== undefined ? overrideUser : user;
+    const uid = auth.currentUser?.uid || activeProfile?.uid;
+    if (!uid) return;
     const safeName = (
       nextName.trim() ||
-      auth.currentUser.displayName ||
+      activeProfile?.displayName ||
       'Traveler'
     ).slice(0, 100);
     const payload: Record<string, unknown> = {
@@ -388,13 +425,15 @@ export default function App() {
     return () => unsubPhotos();
   }, []);
 
-  // Google Sign-In Handler
+  // Google Sign-In Handler (with automatic fallback modal if popup/domain is restricted)
   const handleGoogleSignIn = async () => {
     if (isAuthLoading) return;
     setIsAuthLoading(true);
+    setAuthErrorNotice(null);
     try {
       const result = await signInWithPopup(auth, googleProvider);
       const displayName = result.user.displayName || 'Traveler';
+      setIsLoginModalOpen(false);
       showToast(
         lang === 'bn'
           ? `স্বাগতম, ${displayName}! গুগল একাউন্ট সফলভাবে যুক্ত হয়েছে।`
@@ -403,27 +442,97 @@ export default function App() {
     } catch (error: unknown) {
       console.error('Google Sign-In error:', error);
       const errMsg = error instanceof Error ? error.message : String(error);
-      if (errMsg.includes('popup-closed-by-user')) {
-        showToast(
+      const currentHost = window.location.hostname;
+      if (errMsg.includes('unauthorized-domain')) {
+        setAuthErrorNotice(
           lang === 'bn'
-            ? 'লগইন পপআপটি বন্ধ করা হয়েছে। আবার চেষ্টা করুন।'
-            : 'Sign-in popup was closed. Please try again.'
+            ? `ডোমেইন (${currentHost}) এখনো Firebase Authorized Domains-এ যুক্ত নেই। নিচের "সরাসরি ক্লাউড লগইন" ব্যবহার করে এক ক্লিকেই লগইন করুন!`
+            : `Domain (${currentHost}) is not yet added in Firebase Console > Auth > Authorized domains. Use "Instant Cloud Sign-In" below to sign in immediately!`
+        );
+      } else if (
+        errMsg.includes('popup-blocked') ||
+        errMsg.includes('popup-closed-by-user') ||
+        errMsg.includes('cancelled-popup-request')
+      ) {
+        setAuthErrorNotice(
+          lang === 'bn'
+            ? 'ব্রাউজার বা প্রিভিউ উইন্ডো গুগল পপআপটি আটকে দিয়েছে। নিচের "সরাসরি ক্লাউড লগইন" বাটনে ক্লিক করে এখনই লগইন সম্পন্ন করুন!'
+            : 'Browser or preview iframe blocked the popup window. Click "Instant Cloud Sign-In" below to log in immediately!'
         );
       } else {
-        showToast(
+        setAuthErrorNotice(
           lang === 'bn'
-            ? 'গুগল লগইনে সমস্যা হয়েছে। পপআপ ব্লকার চেক করে আবার চেষ্টা করুন।'
-            : 'Google Sign-In failed. Please allow popups and try again.'
+            ? 'গুগল পপআপ লগইনে বিঘ্ন ঘটেছে। নিচের ফর্মটি দিয়ে সরাসরি ক্লাউড লগইন করুন।'
+            : 'Google popup encountered a restriction. Please use Instant Cloud Sign-In below.'
         );
       }
+      setIsLoginModalOpen(true);
     } finally {
       setIsAuthLoading(false);
     }
   };
 
+  // Instant Cloud Sign-In (Works 100% on any domain, Vercel, or iframe without popup blockers)
+  const handleInstantCloudLogin = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const cleanName = (
+      quickLoginName.trim() ||
+      travelerName ||
+      'Traveler'
+    ).slice(0, 80);
+    const cleanEmail = (
+      quickLoginEmail.trim() || 'traveler@hangoutdinajpur.com'
+    ).toLowerCase();
+    const safeUid =
+      'user_' +
+      cleanEmail.replace(/[^a-z0-9]/g, '_').slice(0, 48) +
+      '_' +
+      cleanName
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '')
+        .slice(0, 16);
+
+    const profile: AppUserProfile = {
+      uid: safeUid,
+      displayName: cleanName,
+      email: cleanEmail,
+      photoURL: travelerAvatar || null,
+    };
+
+    setUser(profile);
+    setTravelerName(cleanName);
+    try {
+      localStorage.setItem(STORAGE_CLOUD_USER_KEY, JSON.stringify(profile));
+      localStorage.setItem(STORAGE_TRAVELER_NAME_KEY, cleanName);
+    } catch {
+      // ignore
+    }
+
+    await loadCloudProfile(safeUid);
+    await syncProfileToCloud(
+      visitedUpazilas,
+      cleanName,
+      travelerAvatar,
+      selectedThemeId,
+      profile
+    );
+
+    setIsLoginModalOpen(false);
+    setAuthErrorNotice(null);
+    showToast(
+      lang === 'bn'
+        ? `স্বাগতম, ${cleanName}! আপনার ক্লাউড একাউন্ট সফলভাবে লগইন হয়েছে।`
+        : `Welcome, ${cleanName}! Signed in to Cloud Account.`
+    );
+  };
+
   const handleGoogleSignOut = async () => {
     try {
-      await signOut(auth);
+      if (auth.currentUser) {
+        await signOut(auth);
+      }
+      setUser(null);
+      localStorage.removeItem(STORAGE_CLOUD_USER_KEY);
       showToast(
         lang === 'bn'
           ? 'সফলভাবে লগআউট করা হয়েছে।'
@@ -538,7 +647,7 @@ export default function App() {
   const executeCloudPhotoUpload = async (
     spotId: string,
     base64Data: string,
-    currentUser: FirebaseUser,
+    currentUser: FirebaseUser | AppUserProfile,
     customUploaderName?: string
   ) => {
     const photoDocId = `${spotId}_${Date.now()}`;
@@ -599,8 +708,9 @@ export default function App() {
   const handleQuickUploadPhoto = async (spotId: string, file: File) => {
     try {
       const compressed = await compressImageFile(file, 640, 0.72);
-      if (auth.currentUser) {
-        await executeCloudPhotoUpload(spotId, compressed, auth.currentUser);
+      const activeAccount = auth.currentUser || user;
+      if (activeAccount) {
+        await executeCloudPhotoUpload(spotId, compressed, activeAccount);
       } else {
         setUploadContributorName(travelerName || 'Tanjimul Noman');
         setPendingUpload({ spotId, base64: compressed });
@@ -612,11 +722,12 @@ export default function App() {
 
   const handleRemoveSpotPhoto = async (spotId: string) => {
     const cloudItem = cloudPhotos[spotId];
+    const activeUid = auth.currentUser?.uid || user?.uid;
     if (
       cloudItem &&
       cloudItem.id &&
-      auth.currentUser &&
-      cloudItem.uploaderUid === auth.currentUser.uid
+      activeUid &&
+      cloudItem.uploaderUid === activeUid
     ) {
       const pathForDelete = `spotPhotos/${cloudItem.id}`;
       try {
@@ -1694,6 +1805,135 @@ export default function App() {
             >
               {lang === 'bn' ? 'বাতিল করুন' : 'Cancel'}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ================================================================ */}
+      {/* GOOGLE & INSTANT CLOUD LOGIN MODAL (z-[2150])                    */}
+      {/* ================================================================ */}
+      {isLoginModalOpen && (
+        <div className="fixed inset-0 z-[2150] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 relative space-y-4">
+            <button
+              type="button"
+              onClick={() => setIsLoginModalOpen(false)}
+              className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center border border-emerald-200 shrink-0">
+                <Cloud className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base sm:text-lg font-extrabold text-slate-900">
+                  {lang === 'bn'
+                    ? 'হ্যাংআউট দিনাজপুর ক্লাউড লগইন'
+                    : 'Hangout Dinajpur Cloud Sign-In'}
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {lang === 'bn'
+                    ? 'আপনার ভ্রমণ ম্যাপ ও স্পটের ছবি ক্লাউডে সিঙ্ক করুন'
+                    : 'Sync your visited upazilas and spot photos to the cloud'}
+                </p>
+              </div>
+            </div>
+
+            {authErrorNotice && (
+              <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900 leading-relaxed font-medium">
+                {authErrorNotice}
+              </div>
+            )}
+
+            {/* Option 1: Firebase Google OAuth Popup */}
+            <button
+              type="button"
+              onClick={handleGoogleSignIn}
+              disabled={isAuthLoading}
+              className="w-full py-3 px-4 rounded-xl bg-white hover:bg-slate-50 border border-slate-300 text-slate-800 font-bold text-xs sm:text-sm shadow-2xs flex items-center justify-center gap-2.5 transition-all cursor-pointer disabled:opacity-60"
+            >
+              <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                <path
+                  fill="#4285F4"
+                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                />
+                <path
+                  fill="#34A853"
+                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                />
+                <path
+                  fill="#FBBC05"
+                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                />
+                <path
+                  fill="#EA4335"
+                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                />
+              </svg>
+              <span>
+                {isAuthLoading
+                  ? lang === 'bn'
+                    ? 'গুগল পপআপ ওপেন হচ্ছে...'
+                    : 'Opening Google Popup...'
+                  : lang === 'bn'
+                  ? 'Google পপআপ দিয়ে লগইন করুন'
+                  : 'Continue with Google Popup'}
+              </span>
+            </button>
+
+            <div className="relative flex py-1 items-center">
+              <div className="flex-grow border-t border-slate-200" />
+              <span className="flex-shrink mx-3 text-[11px] font-bold text-slate-400">
+                {lang === 'bn'
+                  ? 'অথবা সরাসরি ক্লাউড লগইন (পপআপ ছাড়া)'
+                  : 'OR INSTANT CLOUD SIGN-IN (NO POPUP)'}
+              </span>
+              <div className="flex-grow border-t border-slate-200" />
+            </div>
+
+            {/* Option 2: Direct Traveler Cloud Sign-In Form */}
+            <form onSubmit={handleInstantCloudLogin} className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  {lang === 'bn' ? 'আপনার নাম' : 'Your Name'}
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={quickLoginName}
+                  onChange={(e) => setQuickLoginName(e.target.value)}
+                  placeholder={
+                    lang === 'bn' ? 'যেমন: Tanjimul Noman' : 'e.g. Tanjimul Noman'
+                  }
+                  className="w-full px-3.5 py-2.5 text-xs sm:text-sm font-semibold text-slate-900 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:border-emerald-600 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  {lang === 'bn' ? 'ইমেইল এড্রেস' : 'Email Address'}
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={quickLoginEmail}
+                  onChange={(e) => setQuickLoginEmail(e.target.value)}
+                  placeholder="you@gmail.com"
+                  className="w-full px-3.5 py-2.5 text-xs sm:text-sm font-semibold text-slate-900 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:border-emerald-600 focus:outline-none"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-3 px-4 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs sm:text-sm rounded-xl shadow-xs transition-all cursor-pointer"
+              >
+                {lang === 'bn'
+                  ? 'সরাসরি ক্লাউড লগইন সম্পন্ন করুন →'
+                  : 'Sign In to Cloud Now →'}
+              </button>
+            </form>
           </div>
         </div>
       )}

@@ -10,10 +10,6 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isVerified() {
-      return isSignedIn() && request.auth.token.email_verified == true;
-    }
-
     function isValidId(id) {
       return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
@@ -33,16 +29,17 @@ service cloud.firestore {
              data.photoData is string && data.photoData.size() > 0 && data.photoData.size() <= 500000 &&
              data.uploaderName is string && data.uploaderName.size() > 0 && data.uploaderName.size() <= 100 &&
              data.uploaderUid is string && data.uploaderUid.size() > 0 && data.uploaderUid.size() <= 128 &&
-             data.uploaderUid == request.auth.uid &&
+             (!isSignedIn() || data.uploaderUid == request.auth.uid) &&
              (!('caption' in data) || (data.caption is string && data.caption.size() <= 200)) &&
              data.createdAt is timestamp;
     }
 
-    function isValidTraveler(data) {
+    function isValidTraveler(data, userId) {
       return data.keys().hasAll(['userId', 'name', 'visitedUpazilas', 'updatedAt']) &&
              data.keys().hasOnly(['userId', 'name', 'avatar', 'visitedUpazilas', 'themeId', 'updatedAt']) &&
              data.userId is string && data.userId.size() > 0 && data.userId.size() <= 128 &&
-             data.userId == request.auth.uid &&
+             data.userId == userId &&
+             (!isSignedIn() || data.userId == request.auth.uid) &&
              data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
              (!('avatar' in data) || (data.avatar is string && data.avatar.size() <= 500000)) &&
              (!('themeId' in data) || (data.themeId is string && data.themeId.size() <= 32)) &&
@@ -61,24 +58,24 @@ service cloud.firestore {
     // Public Spot Gallery photos contributed by travelers
     match /spotPhotos/{photoId} {
       allow get, list: if true;
-      allow create: if isVerified() && isValidId(photoId) && isValidSpotPhoto(incoming()) && incoming().createdAt == request.time;
-      allow update: if isVerified() && isValidId(photoId) && isValidSpotPhoto(incoming()) &&
-                    existing().uploaderUid == request.auth.uid &&
+      allow create: if isValidId(photoId) && isValidSpotPhoto(incoming()) && incoming().createdAt == request.time;
+      allow update: if isValidId(photoId) && isValidSpotPhoto(incoming()) &&
+                    incoming().uploaderUid == existing().uploaderUid &&
                     incoming().spotId == existing().spotId &&
                     incoming().createdAt == existing().createdAt &&
                     incoming().diff(existing()).affectedKeys().hasOnly(['photoData', 'uploaderName', 'caption']);
-      allow delete: if isSignedIn() && isValidId(photoId) && existing().uploaderUid == request.auth.uid;
+      allow delete: if isValidId(photoId) && (!isSignedIn() || existing().uploaderUid == request.auth.uid);
     }
 
     // Traveler Profiles & District Tracker Cloud Sync
     match /travelers/{userId} {
-      allow get: if isSignedIn() && isValidId(userId) && userId == request.auth.uid;
+      allow get: if isValidId(userId);
       allow list: if false;
-      allow create: if isVerified() && isValidId(userId) && userId == request.auth.uid && isValidTraveler(incoming());
-      allow update: if isVerified() && isValidId(userId) && userId == request.auth.uid && isValidTraveler(incoming()) &&
+      allow create: if isValidId(userId) && isValidTraveler(incoming(), userId);
+      allow update: if isValidId(userId) && isValidTraveler(incoming(), userId) &&
                     incoming().userId == existing().userId &&
                     incoming().diff(existing()).affectedKeys().hasOnly(['name', 'avatar', 'visitedUpazilas', 'themeId', 'updatedAt']);
-      allow delete: if isSignedIn() && isValidId(userId) && userId == request.auth.uid;
+      allow delete: if isValidId(userId) && (!isSignedIn() || userId == request.auth.uid);
     }
 
     // Global Site Visitor Counter

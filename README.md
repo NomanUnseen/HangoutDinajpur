@@ -1,39 +1,20 @@
 <div align="center">
-
-# 🇧🇩 Hangout Bangladesh
-
-Discover, plan, and share local hangouts, spots, and events across Bangladesh.
-
+<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
 </div>
 
----
+# Run and deploy your AI Studio app
 
-## 📌 Overview
+This contains everything you need to run your app locally.
 
-**Hangout Bangladesh** is an application designed to help locals and travelers discover the best hangout spots, food destinations, and cultural events across Bangladesh. Whether you're looking for vibrant rooftop cafes in Dhaka, serene spots in Sylhet, or weekend getaways in Cox's Bazar, Hangout Bangladesh helps you find and plan your next experience.
+View your app in AI Studio: https://ai.studio/apps/7e1ffa64-d74e-4641-857c-5381f040265c
 
----
+## Run Locally
 
-## ✨ Features
+**Prerequisites:**  Node.js
 
-- 📍 **Explore Hangout Spots:** Interactive recommendations for cafes, restaurants, parks, and hidden gems across Bangladesh.
-- 🗺️ **Location-Based Discovery:** Easily search by city, region, or activity type.
-- 🎯 **Smart Recommendations:** Suggestions tailored to your mood, group size, and preferences.
 
----
-
-## 🚀 Getting Started
-
-Follow these instructions to get a local copy up and running on your machine.
-
-### Prerequisites
-
-- **Node.js** (v18.0.0 or higher recommended)
-- **Git**
-
-### Local Installation
-
-1. **Clone the repository:**
-   ```bash
-   git clone [https://github.com/NomanUnseen/hangout-bangladesh.git](https://github.com/NomanUnseen/hangout-bangladesh.git)
-   cd hangout-bangladesh
+1. Install dependencies:
+   `npm install`
+2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+3. Run the app:
+   `npm run dev`

@@ -31,26 +31,4 @@ This project runs standalone with zero installation required:
 
 1. Clone or download the repository:
    ```bash
-   git clone https://github.com/NomanUnseen/HangoutDinajpur.git
-   ```
-2. Double-click `index.html` to open it in any modern web browser (Chrome, Edge, Safari, Firefox). No build step or local server is needed.
-
----
-
-## 🌐 Deploy to GitHub Pages
-
-1. Go to your repository on GitHub.
-2. Click **Settings** > **Pages** (in the left sidebar).
-3. Under **Build and deployment**:
-   - **Source:** Select `Deploy from a branch`
-   - **Branch:** Select `main` (or `master`) and folder `/(root)`
-   - Click **Save**.
-4. Your site will be live within 1–2 minutes at:
-   `https://<your-username>.github.io/<repo-name>/`
-
----
-
-## 👤 Author
-
-- **Created by:** [Tanjimul Noman](https://www.facebook.com/NomanUnseen/)
-- **Note:** *"Just a fun hobby project built to show places I've traveled around Dinajpur."*
+   git clone [https://github.com/NomanUnseen/HangoutDinajpur.git](https://github.com/NomanUnseen/HangoutDinajpur.git)

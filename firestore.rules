@@ -1,7 +1,6 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
     // Global default-deny safety net
     match /{document=**} {
       allow read, write: if false;
@@ -31,36 +30,67 @@ service cloud.firestore {
       return data.keys().hasAll(['spotId', 'photoData', 'uploaderName', 'uploaderUid', 'createdAt']) &&
              data.keys().hasOnly(['spotId', 'photoData', 'uploaderName', 'uploaderUid', 'caption', 'createdAt']) &&
              data.spotId is string && data.spotId.size() > 0 && data.spotId.size() <= 64 &&
-             data.photoData is string && data.photoData.size() > 0 && data.photoData.size() <= 150000 &&
+             data.photoData is string && data.photoData.size() > 0 && data.photoData.size() <= 500000 &&
              data.uploaderName is string && data.uploaderName.size() > 0 && data.uploaderName.size() <= 100 &&
+             data.uploaderUid is string && data.uploaderUid.size() > 0 && data.uploaderUid.size() <= 128 &&
              data.uploaderUid == request.auth.uid &&
              (!('caption' in data) || (data.caption is string && data.caption.size() <= 200)) &&
-             data.createdAt == request.time;
+             data.createdAt is timestamp;
     }
 
     function isValidTraveler(data) {
       return data.keys().hasAll(['userId', 'name', 'visitedUpazilas', 'updatedAt']) &&
-             data.keys().hasOnly(['userId', 'name', 'avatar', 'visitedUpazilas', 'updatedAt']) &&
+             data.keys().hasOnly(['userId', 'name', 'avatar', 'visitedUpazilas', 'themeId', 'updatedAt']) &&
+             data.userId is string && data.userId.size() > 0 && data.userId.size() <= 128 &&
              data.userId == request.auth.uid &&
              data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
-             (!('avatar' in data) || (data.avatar is string && data.avatar.size() <= 150000)) &&
+             (!('avatar' in data) || (data.avatar is string && data.avatar.size() <= 500000)) &&
+             (!('themeId' in data) || (data.themeId is string && data.themeId.size() <= 32)) &&
              data.visitedUpazilas is list && data.visitedUpazilas.size() <= 13 &&
+             (data.visitedUpazilas.size() == 0 || (data.visitedUpazilas[0] is string && data.visitedUpazilas[0].size() <= 32)) &&
+             data.updatedAt == request.time;
+    }
+
+    function isValidSiteStats(data) {
+      return data.keys().hasAll(['count', 'updatedAt']) &&
+             data.keys().hasOnly(['count', 'updatedAt']) &&
+             data.count is int && data.count >= 1 && data.count <= 1000000000 &&
              data.updatedAt == request.time;
     }
 
     // Public Spot Gallery photos contributed by travelers
     match /spotPhotos/{photoId} {
-      allow read: if true;
-      allow create: if isVerified() && isValidId(photoId) && isValidSpotPhoto(incoming());
-      allow delete: if isSignedIn() && existing().uploaderUid == request.auth.uid;
-      allow update: if false;
+      allow get, list: if true;
+      allow create: if isVerified() && isValidId(photoId) && isValidSpotPhoto(incoming()) && incoming().createdAt == request.time;
+      allow update: if isVerified() && isValidId(photoId) && isValidSpotPhoto(incoming()) &&
+                    existing().uploaderUid == request.auth.uid &&
+                    incoming().spotId == existing().spotId &&
+                    incoming().createdAt == existing().createdAt &&
+                    incoming().diff(existing()).affectedKeys().hasOnly(['photoData', 'uploaderName', 'caption']);
+      allow delete: if isSignedIn() && isValidId(photoId) && existing().uploaderUid == request.auth.uid;
     }
 
-    // Traveler Profiles & Tracker
+    // Traveler Profiles & District Tracker Cloud Sync
     match /travelers/{userId} {
-      allow read: if true;
-      allow create, update: if isVerified() && isValidId(userId) && userId == request.auth.uid && isValidTraveler(incoming());
-      allow delete: if isSignedIn() && userId == request.auth.uid;
+      allow get: if isSignedIn() && isValidId(userId) && userId == request.auth.uid;
+      allow list: if false;
+      allow create: if isVerified() && isValidId(userId) && userId == request.auth.uid && isValidTraveler(incoming());
+      allow update: if isVerified() && isValidId(userId) && userId == request.auth.uid && isValidTraveler(incoming()) &&
+                    incoming().userId == existing().userId &&
+                    incoming().diff(existing()).affectedKeys().hasOnly(['name', 'avatar', 'visitedUpazilas', 'themeId', 'updatedAt']);
+      allow delete: if isSignedIn() && isValidId(userId) && userId == request.auth.uid;
+    }
+
+    // Global Site Visitor Counter
+    match /siteStats/{statId} {
+      allow get: if statId == 'visitors';
+      allow list: if false;
+      allow create: if statId == 'visitors' && isValidSiteStats(incoming()) && incoming().count >= 1 && incoming().count <= 100000;
+      allow update: if isValidSiteStats(incoming()) &&
+                    statId == 'visitors' &&
+                    incoming().diff(existing()).affectedKeys().hasOnly(['count', 'updatedAt']) &&
+                    incoming().count == existing().count + 1;
+      allow delete: if false;
     }
   }
 }

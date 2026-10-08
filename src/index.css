@@ -1,1 +1,103 @@
 @import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: 'Hind Siliguri', 'Plus Jakarta Sans', sans-serif;
+    background-color: #F7F6F2;
+    color: #0f172a;
+    overflow-x: hidden;
+  }
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.upazila-path {
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.upazila-path:hover {
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.14));
+  opacity: 0.94;
+}
+
+/* Fix Leaflet Popup styling so it never clips or shows awkward borders */
+.leaflet-popup-content-wrapper {
+  border-radius: 16px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  box-shadow: 0 14px 30px -5px rgba(15, 23, 42, 0.22), 0 4px 10px -2px rgba(15, 23, 42, 0.08) !important;
+  border: 1px solid rgba(226, 232, 240, 0.9) !important;
+}
+
+.leaflet-popup-content {
+  margin: 0 !important;
+  width: 280px !important;
+  line-height: 1.45 !important;
+  font-family: 'Hind Siliguri', 'Plus Jakarta Sans', sans-serif !important;
+}
+
+.leaflet-popup-close-button {
+  color: #ffffff !important;
+  font-size: 18px !important;
+  font-weight: bold !important;
+  top: 8px !important;
+  right: 8px !important;
+  width: 24px !important;
+  height: 24px !important;
+  line-height: 22px !important;
+  background: rgba(15, 23, 42, 0.45) !important;
+  border-radius: 9999px !important;
+  text-align: center !important;
+  z-index: 20 !important;
+  transition: background 0.15s ease !important;
+}
+.leaflet-popup-close-button:hover {
+  background: rgba(15, 23, 42, 0.75) !important;
+  color: #ffffff !important;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #printablePoster,
+  #printablePoster * {
+    visibility: visible;
+  }
+  #printablePoster {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    background: white !important;
+    padding: 20px !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+  .no-print,
+  .no-export {
+    display: none !important;
+  }
+}

@@ -13,7 +13,7 @@
         "photoData": {
           "type": "string",
           "description": "Base64 encoded JPEG data URL of the compressed image",
-          "maxLength": 150000
+          "maxLength": 500000
         },
         "uploaderName": {
           "type": "string",
@@ -32,6 +32,7 @@
         },
         "createdAt": {
           "type": "string",
+          "format": "date-time",
           "description": "Creation timestamp"
         }
       },
@@ -55,18 +56,41 @@
         "avatar": {
           "type": "string",
           "description": "Avatar image data URL",
-          "maxLength": 150000
+          "maxLength": 500000
         },
         "visitedUpazilas": {
           "type": "array",
           "description": "List of visited upazila IDs"
         },
+        "themeId": {
+          "type": "string",
+          "description": "Selected map color theme ID",
+          "maxLength": 32
+        },
         "updatedAt": {
           "type": "string",
+          "format": "date-time",
           "description": "Last update timestamp"
         }
       },
       "required": ["userId", "name", "visitedUpazilas", "updatedAt"]
+    },
+    "siteStats": {
+      "title": "Site Visitor Statistics",
+      "description": "Exact total visitor count for Hangout Dinajpur landing page",
+      "type": "object",
+      "properties": {
+        "count": {
+          "type": "integer",
+          "description": "Total visitor count"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last visit timestamp"
+        }
+      },
+      "required": ["count", "updatedAt"]
     }
   },
   "firestore": {
@@ -77,6 +101,10 @@
     "/travelers/{userId}": {
       "schema": "travelerProfile",
       "description": "Traveler profiles and visited upazilas tracker data"
+    },
+    "/siteStats/{statId}": {
+      "schema": "siteStats",
+      "description": "Global site visitor counter document"
     }
   }
 }

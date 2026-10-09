@@ -91,6 +91,64 @@
         }
       },
       "required": ["count", "updatedAt"]
+    },
+    "generatedPoster": {
+      "title": "Generated Travel Map Poster",
+      "description": "Record of a traveler generating or downloading a PNG, JPG, or PDF travel map poster",
+      "type": "object",
+      "properties": {
+        "travelerName": {
+          "type": "string",
+          "description": "Name entered on the generated poster",
+          "maxLength": 100
+        },
+        "format": {
+          "type": "string",
+          "description": "Downloaded file format (png, jpg, or pdf)",
+          "maxLength": 10
+        },
+        "visitedUpazilas": {
+          "type": "array",
+          "description": "List of visited upazila IDs included on the poster"
+        },
+        "visitedCount": {
+          "type": "integer",
+          "description": "Number of visited upazilas"
+        },
+        "progressPercent": {
+          "type": "integer",
+          "description": "Completion percentage (0 to 100)"
+        },
+        "themeId": {
+          "type": "string",
+          "description": "Selected map theme ID",
+          "maxLength": 32
+        },
+        "posterPreview": {
+          "type": "string",
+          "description": "Compressed JPEG base64 preview of the generated poster image",
+          "maxLength": 500000
+        },
+        "userId": {
+          "type": "string",
+          "description": "Optional UID or guest identifier",
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when the poster was generated"
+        }
+      },
+      "required": [
+        "travelerName",
+        "format",
+        "visitedUpazilas",
+        "visitedCount",
+        "progressPercent",
+        "themeId",
+        "createdAt"
+      ]
     }
   },
   "firestore": {
@@ -105,6 +163,10 @@
     "/siteStats/{statId}": {
       "schema": "siteStats",
       "description": "Global site visitor counter document"
+    },
+    "/generatedPosters/{posterId}": {
+      "schema": "generatedPoster",
+      "description": "All generated and downloaded PNG, JPG, and PDF travel map posters"
     }
   }
 }

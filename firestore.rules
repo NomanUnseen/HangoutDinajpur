@@ -55,6 +55,20 @@ service cloud.firestore {
              data.updatedAt == request.time;
     }
 
+    function isValidGeneratedPoster(data) {
+      return data.keys().hasAll(['travelerName', 'format', 'visitedUpazilas', 'visitedCount', 'progressPercent', 'themeId', 'createdAt']) &&
+             data.keys().hasOnly(['travelerName', 'format', 'visitedUpazilas', 'visitedCount', 'progressPercent', 'themeId', 'posterPreview', 'userId', 'createdAt']) &&
+             data.travelerName is string && data.travelerName.size() > 0 && data.travelerName.size() <= 100 &&
+             data.format is string && (data.format == 'png' || data.format == 'jpg' || data.format == 'pdf') &&
+             data.visitedUpazilas is list && data.visitedUpazilas.size() <= 13 &&
+             data.visitedCount is int && data.visitedCount >= 0 && data.visitedCount <= 13 &&
+             data.progressPercent is int && data.progressPercent >= 0 && data.progressPercent <= 100 &&
+             data.themeId is string && data.themeId.size() > 0 && data.themeId.size() <= 32 &&
+             (!('posterPreview' in data) || (data.posterPreview is string && data.posterPreview.size() <= 500000)) &&
+             (!('userId' in data) || (data.userId is string && data.userId.size() <= 128)) &&
+             data.createdAt == request.time;
+    }
+
     // Public Spot Gallery photos contributed by travelers
     match /spotPhotos/{photoId} {
       allow get, list: if true;
@@ -70,7 +84,7 @@ service cloud.firestore {
     // Traveler Profiles & District Tracker Cloud Sync
     match /travelers/{userId} {
       allow get: if isValidId(userId);
-      allow list: if false;
+      allow list: if true;
       allow create: if isValidId(userId) && isValidTraveler(incoming(), userId);
       allow update: if isValidId(userId) && isValidTraveler(incoming(), userId) &&
                     incoming().userId == existing().userId &&
@@ -88,6 +102,13 @@ service cloud.firestore {
                     incoming().diff(existing()).affectedKeys().hasOnly(['count', 'updatedAt']) &&
                     incoming().count == existing().count + 1;
       allow delete: if false;
+    }
+
+    // Generated & Downloaded Travel Map Posters Log (/generatedPosters/{posterId})
+    match /generatedPosters/{posterId} {
+      allow get, list: if true;
+      allow create: if isValidId(posterId) && isValidGeneratedPoster(incoming());
+      allow update, delete: if false;
     }
   }
 }

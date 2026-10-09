@@ -31,6 +31,10 @@ interface DistrictTrackerSectionProps {
   selectedThemeId: string;
   onSelectTheme: (themeId: string) => void;
   onShowToast: (msg: string) => void;
+  onPosterGenerated?: (
+    format: 'png' | 'jpg' | 'pdf',
+    posterPreviewDataUrl: string
+  ) => void;
 }
 
 export const DistrictTrackerSection: React.FC<DistrictTrackerSectionProps> = ({
@@ -46,6 +50,7 @@ export const DistrictTrackerSection: React.FC<DistrictTrackerSectionProps> = ({
   selectedThemeId,
   onSelectTheme,
   onShowToast,
+  onPosterGenerated,
 }) => {
   const [upazilaSearch, setUpazilaSearch] = useState('');
   const [showUpazilaNames, setShowUpazilaNames] = useState(true);
@@ -497,6 +502,25 @@ export const DistrictTrackerSection: React.FC<DistrictTrackerSectionProps> = ({
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+      }
+
+      // Generate a lightweight preview (480px wide) to save to Firebase Firestore (/generatedPosters)
+      if (onPosterGenerated) {
+        try {
+          const thumbCanvas = document.createElement('canvas');
+          const thumbW = 480;
+          const thumbH = Math.round((canvas.height * thumbW) / canvas.width);
+          thumbCanvas.width = thumbW;
+          thumbCanvas.height = thumbH;
+          const tCtx = thumbCanvas.getContext('2d');
+          if (tCtx) {
+            tCtx.drawImage(canvas, 0, 0, thumbW, thumbH);
+            const previewJpeg = thumbCanvas.toDataURL('image/jpeg', 0.72);
+            onPosterGenerated(format, previewJpeg);
+          }
+        } catch (thumbErr) {
+          console.warn('Poster preview log warning:', thumbErr);
+        }
       }
 
       onShowToast(

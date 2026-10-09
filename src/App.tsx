@@ -249,8 +249,12 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // Load Cloud Profile Helper
-  const loadCloudProfile = async (uid: string) => {
+  // Load Cloud Profile Helper (and create initial document in Firestore if new user)
+  const loadCloudProfile = async (
+    uid: string,
+    fallbackName?: string,
+    fallbackAvatar?: string | null
+  ) => {
     try {
       const profileRef = doc(db, 'travelers', uid);
       const snap = await getDoc(profileRef);
@@ -272,9 +276,27 @@ export default function App() {
         if (data.themeId) {
           setSelectedThemeId(data.themeId);
         }
+      } else {
+        // Immediately create document in Firestore so it appears in Firebase Console
+        const initialName = (fallbackName || travelerName || 'Traveler').slice(
+          0,
+          100
+        );
+        const initialAvatar = fallbackAvatar || travelerAvatar || null;
+        const payload: Record<string, unknown> = {
+          userId: uid,
+          name: initialName,
+          visitedUpazilas: visitedUpazilas.slice(0, 13),
+          themeId: selectedThemeId.slice(0, 32),
+          updatedAt: serverTimestamp(),
+        };
+        if (initialAvatar && initialAvatar.length <= 500000) {
+          payload.avatar = initialAvatar;
+        }
+        await setDoc(profileRef, payload);
       }
     } catch (err) {
-      console.warn('Could not load traveler cloud profile:', err);
+      console.warn('Could not load/create traveler cloud profile:', err);
     }
   };
 
@@ -302,7 +324,11 @@ export default function App() {
         if (currentUser.photoURL) {
           setTravelerAvatar((prev) => prev || currentUser.photoURL);
         }
-        await loadCloudProfile(currentUser.uid);
+        await loadCloudProfile(
+          currentUser.uid,
+          currentUser.displayName || undefined,
+          currentUser.photoURL
+        );
       }
     });
     return () => unsubscribe();
@@ -440,7 +466,6 @@ export default function App() {
           : `Welcome, ${displayName}! Signed in with Google.`
       );
     } catch (error: unknown) {
-      console.error('Google Sign-In error:', error);
       const errMsg = error instanceof Error ? error.message : String(error);
       const currentHost = window.location.hostname;
       if (errMsg.includes('unauthorized-domain')) {
@@ -456,8 +481,8 @@ export default function App() {
       ) {
         setAuthErrorNotice(
           lang === 'bn'
-            ? 'ব্রাউজার বা প্রিভিউ উইন্ডো গুগল পপআপটি আটকে দিয়েছে। নিচের "সরাসরি ক্লাউড লগইন" বাটনে ক্লিক করে এখনই লগইন সম্পন্ন করুন!'
-            : 'Browser or preview iframe blocked the popup window. Click "Instant Cloud Sign-In" below to log in immediately!'
+            ? 'গুগল পপআপ উইন্ডোটি বন্ধ বা ব্লক হয়েছে। নিচের "সরাসরি ক্লাউড লগইন" বাটনে ক্লিক করে এক ক্লিকেই লগইন সম্পন্ন করুন!'
+            : 'Google popup window was closed or blocked. Click "Sign In to Cloud Now" below to log in immediately!'
         );
       } else {
         setAuthErrorNotice(
@@ -641,6 +666,59 @@ export default function App() {
       // ignore
     }
     syncProfileToCloud(visitedUpazilas, travelerName, travelerAvatar, themeId);
+  };
+
+  // Log every generated/downloaded PNG, JPG, or PDF poster to Firestore (/generatedPosters & /travelers)
+  const handlePosterGenerated = async (
+    format: 'png' | 'jpg' | 'pdf',
+    posterPreviewDataUrl: string
+  ) => {
+    const cleanName = (
+      travelerName.trim() ||
+      user?.displayName ||
+      'Dinajpur Explorer'
+    ).slice(0, 100);
+    const activeUid =
+      auth.currentUser?.uid ||
+      user?.uid ||
+      `guest_${cleanName.toLowerCase().replace(/[^a-z0-9]/g, '_') || 'traveler'}`;
+    const posterDocId = `poster_${Date.now()}_${Math.random()
+      .toString(36)
+      .slice(2, 7)}`;
+    const visitedCount = visitedUpazilas.length;
+    const progressPercent = Math.round((visitedCount / UPAZILAS.length) * 100);
+
+    try {
+      const payload: Record<string, unknown> = {
+        travelerName: cleanName,
+        format,
+        visitedUpazilas: visitedUpazilas.slice(0, 13),
+        visitedCount,
+        progressPercent,
+        themeId: selectedThemeId.slice(0, 32),
+        userId: activeUid.slice(0, 128),
+        createdAt: serverTimestamp(),
+      };
+      if (posterPreviewDataUrl && posterPreviewDataUrl.length <= 500000) {
+        payload.posterPreview = posterPreviewDataUrl;
+      }
+      await setDoc(doc(db, 'generatedPosters', posterDocId), payload);
+
+      // Also save/update their traveler profile in /travelers/{activeUid} even if they didn't log in
+      const travelerPayload: Record<string, unknown> = {
+        userId: activeUid.slice(0, 128),
+        name: cleanName,
+        visitedUpazilas: visitedUpazilas.slice(0, 13),
+        themeId: selectedThemeId.slice(0, 32),
+        updatedAt: serverTimestamp(),
+      };
+      if (travelerAvatar && travelerAvatar.length <= 500000) {
+        travelerPayload.avatar = travelerAvatar;
+      }
+      await setDoc(doc(db, 'travelers', activeUid.slice(0, 128)), travelerPayload);
+    } catch (err) {
+      console.warn('Could not log generated poster to Firestore:', err);
+    }
   };
 
   // Spot Photo Upload Flow
@@ -867,7 +945,10 @@ export default function App() {
             ) : (
               <button
                 type="button"
-                onClick={handleGoogleSignIn}
+                onClick={() => {
+                  setAuthErrorNotice(null);
+                  setIsLoginModalOpen(true);
+                }}
                 disabled={isAuthLoading}
                 className="px-3.5 py-1.5 rounded-full bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-2xs flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap disabled:opacity-60"
               >
@@ -1082,6 +1163,7 @@ export default function App() {
           selectedThemeId={selectedThemeId}
           onSelectTheme={handleSelectTheme}
           onShowToast={showToast}
+          onPosterGenerated={handlePosterGenerated}
         />
 
         {/* ============================================================== */}
@@ -1747,27 +1829,37 @@ export default function App() {
                 type="button"
                 onClick={async () => {
                   const currentPending = pendingUpload;
-                  const chosenName = uploadContributorName.trim();
+                  const chosenName = (
+                    uploadContributorName.trim() ||
+                    travelerName.trim() ||
+                    'Traveler'
+                  ).slice(0, 80);
                   setPendingUpload(null);
+                  if (!currentPending) return;
+
+                  const guestOrUserProfile: AppUserProfile = user || {
+                    uid: `user_${
+                      chosenName.toLowerCase().replace(/[^a-z0-9]/g, '_') ||
+                      'traveler'
+                    }_${Date.now().toString(36)}`,
+                    displayName: chosenName,
+                    email: quickLoginEmail || 'traveler@hangoutdinajpur.com',
+                    photoURL: travelerAvatar || null,
+                  };
+
                   try {
-                    const res = await signInWithPopup(auth, googleProvider);
-                    if (res.user && currentPending) {
-                      await executeCloudPhotoUpload(
-                        currentPending.spotId,
-                        currentPending.base64,
-                        res.user,
-                        chosenName
-                      );
-                    }
-                  } catch (err) {
-                    console.error('Modal login error:', err);
-                    if (currentPending) {
-                      saveLocalSpotPhoto(
-                        currentPending.spotId,
-                        currentPending.base64,
-                        chosenName
-                      );
-                    }
+                    await executeCloudPhotoUpload(
+                      currentPending.spotId,
+                      currentPending.base64,
+                      auth.currentUser || guestOrUserProfile,
+                      chosenName
+                    );
+                  } catch {
+                    saveLocalSpotPhoto(
+                      currentPending.spotId,
+                      currentPending.base64,
+                      chosenName
+                    );
                   }
                 }}
                 className="w-full py-2.5 px-4 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
@@ -1775,8 +1867,8 @@ export default function App() {
                 <Cloud className="w-4 h-4" />
                 <span>
                   {lang === 'bn'
-                    ? 'গুগল লগইন ও ক্লাউডে সেভ করুন'
-                    : 'Sign in with Google & Save to Cloud'}
+                    ? 'ক্লাউডে সেভ করুন (সবাই দেখবে)'
+                    : 'Save to Cloud Gallery (Public)'}
                 </span>
               </button>
 

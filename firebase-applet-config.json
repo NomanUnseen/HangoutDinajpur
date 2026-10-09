@@ -1,12 +1,12 @@
 {
-  "projectId": "sapient-gizmo-053bd",
-  "appId": "1:772163429617:web:2961a557f7c001a752b550",
-  "apiKey": "AIzaSyAtjZYOb0NubydfxHQIKbpE7KE-DEuDzuM",
-  "authDomain": "sapient-gizmo-053bd.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-hangoutdinajpur-7e1ffa64-d74e-4641-857c-5381f040265c",
-  "storageBucket": "sapient-gizmo-053bd.firebasestorage.app",
-  "messagingSenderId": "772163429617",
-  "measurementId": "",
-  "oAuthClientId": "772163429617-pj6sig39m99ka0kbmro0co30uk9dp6ik.apps.googleusercontent.com",
+  "projectId": "hangout-dinajpur",
+  "appId": "1:766098615982:web:9e1248f46d6bdbb096c73f",
+  "apiKey": "AIzaSyDEzvAtOGZd2m956SNWfei_x12fNEqHkzc",
+  "authDomain": "hangout-dinajpur.firebaseapp.com",
+  "firestoreDatabaseId": "",
+  "storageBucket": "hangout-dinajpur.firebasestorage.app",
+  "messagingSenderId": "766098615982",
+  "measurementId": "G-RK4DTP4T44",
+  "oAuthClientId": "",
   "recaptchaSiteKey": ""
 }

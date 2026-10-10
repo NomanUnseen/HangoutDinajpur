@@ -133,7 +133,7 @@ export default function App() {
   const [authErrorNotice, setAuthErrorNotice] = useState<string | null>(null);
   const [quickLoginName, setQuickLoginName] = useState('Tanjimul Noman');
   const [quickLoginEmail, setQuickLoginEmail] = useState(
-    'tanjimulislamnomann@gmail.com'
+    'nomantanjimulislam@gmail.com'
   );
 
   // Exact Site Visitor Count (Synced with Firestore /siteStats/visitors)

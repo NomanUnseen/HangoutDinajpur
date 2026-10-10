@@ -788,6 +788,96 @@ export const SPOTS: TouristSpot[] = [
     descriptionEn:
       'Serene Sal forest reserve in Charkai, Birampur offering quiet nature walks.',
   },
+  // Fulbari
+  {
+    id: 'fulbari-barapukuria-eco',
+    nameBn: 'ফুলবাড়ী ছোট যমুনা নদী ও ঘাটপাড়',
+    nameEn: 'Fulbari Choto Jamuna Riverfront',
+    upazilaId: 'fulbari',
+    upazilaBn: 'ফুলবাড়ী',
+    upazilaEn: 'Fulbari',
+    category: 'Nature',
+    categoryBn: 'নদী ও প্রাকৃতিক সৌন্দর্য',
+    categoryEn: 'Riverfront & Nature',
+    lat: 25.4982,
+    lng: 88.9485,
+    descriptionBn:
+      'দিনাজপুর সদর থেকে ৪০.৮ কি.মি. দূরে ফুলবাড়ী শহরের বুক চিরে বয়ে যাওয়া ছোট যমুনা নদীর তীর ও ঐতিহাসিক ব্রিটিশ আমলের রেলস্টেশন।',
+    descriptionEn:
+      'Located 40.8 km from Dinajpur Sadar, the scenic Choto Jamuna Riverfront and historic railway station in Fulbari.',
+  },
+  // Chirirbandar
+  {
+    id: 'chirirbandar-ghuguratoli',
+    nameBn: 'চিরিরবন্দর কাঁকড়া নদী ও রাবার ড্যাম',
+    nameEn: 'Chirirbandar Kakra River & Rubber Dam',
+    upazilaId: 'chirirbandar',
+    upazilaBn: 'চিরিরবন্দর',
+    upazilaEn: 'Chirirbandar',
+    category: 'Nature',
+    categoryBn: 'নদী ও ড্যাম ভিউ',
+    categoryEn: 'River & Dam View',
+    lat: 25.6632,
+    lng: 88.7812,
+    descriptionBn:
+      'সুগন্ধি কাটারিভোগ ধানের জনপদ চিরিরবন্দরের কাঁকড়া নদীর মনোরম দৃশ্য ও গ্রামীণ প্রকৃতি।',
+    descriptionEn:
+      'Scenic Kakra River banks in Chirirbandar, the heartland of Dinajpur’s GI-famous aromatic Kataribhog rice.',
+  },
+  // Khansama
+  {
+    id: 'aokra-mosque-khansama',
+    nameBn: 'ঐতিহাসিক আওকরা মসজিদ ও জয়গঞ্জ জমিদার বাড়ি',
+    nameEn: 'Historic Aokra Mosque & Joyganj Zamindar Bari',
+    upazilaId: 'khansama',
+    upazilaBn: 'খানসামা',
+    upazilaEn: 'Khansama',
+    category: 'Historical',
+    categoryBn: 'প্রাচীন স্থাপত্য (১৭৬৬)',
+    categoryEn: 'Historic Architecture (1766)',
+    lat: 25.9212,
+    lng: 88.7425,
+    descriptionBn:
+      '১৭৬৬ খ্রিস্টাব্দে নির্মিত ২৫০ বছরের প্রাচীন আওকরা মসজিদ ও জয়গঞ্জ জমিদার বাড়ির ধ্বংসাবশেষ।',
+    descriptionEn:
+      '250-year-old Mughal-era Aokra Mosque (built 1766 CE) and the historic Joyganj Zamindar Bari in Khansama.',
+  },
+  // Bochaganj
+  {
+    id: 'setabganj-sugar-mill-heritage',
+    nameBn: 'সেতাবগঞ্জ ঐতিহাসিক চিনিকল ও পীর সুলতান মাজার',
+    nameEn: 'Setabganj Historic Sugar Mill & Shrine',
+    upazilaId: 'bochaganj',
+    upazilaBn: 'বোচাগঞ্জ',
+    upazilaEn: 'Bochaganj',
+    category: 'Industry',
+    categoryBn: 'ঐতিহাসিক শিল্প ও ঐতিহ্য',
+    categoryEn: 'Industrial & Cultural Heritage',
+    lat: 25.8012,
+    lng: 88.4615,
+    descriptionBn:
+      'বোচাগঞ্জ উপজেলার সেতাবগঞ্জে অবস্থিত ১৯৩৩ সালের ঐতিহাসিক চিনিকল ক্যাম্পাস ও প্রাচীন ধর্মীয় নিদর্শন।',
+    descriptionEn:
+      'Historic 1933 Setabganj Sugar Mill estate and heritage landmarks in Bochaganj Upazila.',
+  },
+  // Nawabganj Swapnapuri
+  {
+    id: 'swapnapuri-artificial-amusement-park',
+    nameBn: 'স্বপ্নপুরী পিকনিক স্পট ও রিসোর্ট',
+    nameEn: 'Swapnapuri Amusement Park & Resort',
+    upazilaId: 'nawabganj',
+    upazilaBn: 'নবাবগঞ্জ',
+    upazilaEn: 'Nawabganj',
+    category: 'Resort/Park',
+    categoryBn: 'থিম পার্ক ও রিসোর্ট',
+    categoryEn: 'Theme Park & Resort',
+    lat: 25.4685,
+    lng: 89.0352,
+    descriptionBn:
+      'উত্তরবঙ্গের সবচেয়ে জনপ্রিয় ও বিশাল পারিবারিক বিনোদন কেন্দ্র, কেবল কার, কৃত্রিম লেক, চিড়িয়াখানা এবং ভিআইপি রেস্ট হাউস।',
+    descriptionEn:
+      'Northern Bangladesh’s largest family theme park and resort in Nawabganj featuring lakes, gardens, rides, and cottages.',
+  },
 ];
 
 export const HERO_SLIDES = [

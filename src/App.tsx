@@ -56,6 +56,7 @@ import {
   SpotPhotoRecord,
 } from './components/SpotMapExplorer';
 import { DistrictTrackerSection } from './components/DistrictTrackerSection';
+import { InteractiveHubSection } from './components/InteractiveHubSection';
 
 const STORAGE_LANG_KEY = 'hangout_dinajpur_lang';
 const STORAGE_VISITED_KEY = 'hangout_dinajpur_visited_upazilas';
@@ -878,19 +879,19 @@ export default function App() {
               {lang === 'bn' ? 'কান্তজিউ ও ঐতিহ্য' : 'Heritage'}
             </a>
             <a
-              href="#coming-soon-section"
+              href="#quiz-game-section"
               className="px-4 py-1.5 rounded-full hover:text-slate-900 transition-colors whitespace-nowrap"
             >
               {lang === 'bn' ? 'খেলা' : 'Quiz Game'}
             </a>
             <a
-              href="#coming-soon-section"
+              href="#trip-planner-section"
               className="px-4 py-1.5 rounded-full hover:text-slate-900 transition-colors whitespace-nowrap"
             >
               {lang === 'bn' ? 'ট্রিপ প্ল্যানার' : 'Trip Planner'}
             </a>
             <a
-              href="#coming-soon-section"
+              href="#hidden-gems-section"
               className="px-4 py-1.5 rounded-full hover:text-slate-900 transition-colors whitespace-nowrap"
             >
               {lang === 'bn' ? 'লুকানো রত্ন' : 'Hidden Gems'}
@@ -1301,81 +1302,14 @@ export default function App() {
         />
 
         {/* ============================================================== */}
-        {/* 5. COMING SOON SECTION (Bangla in Bangla, English in English)  */}
+        {/* 5. INTERACTIVE HUB: QUIZ, TRIP PLANNER, GEMS & LIVE POSTERS    */}
         {/* ============================================================== */}
-        <section id="coming-soon-section" className="space-y-5">
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
-            <div>
-              <p className="text-xs font-bold text-emerald-700 tracking-wide">
-                {lang === 'bn'
-                  ? 'শীঘ্রই আসছে · নতুন ফিচার ও আপডেট'
-                  : 'Coming Soon · Upcoming Features & Expansions'}
-              </p>
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-0.5">
-                {lang === 'bn'
-                  ? 'আরও নতুন কিছু যুক্ত হচ্ছে শীঘ্রই'
-                  : 'More Exciting Features Coming Soon'}
-              </h2>
-            </div>
-            <p className="text-xs sm:text-sm text-slate-500 max-w-md">
-              {lang === 'bn'
-                ? 'হ্যাংআউট দিনাজপুরকে আরও সমৃদ্ধ করতে নতুন দর্শনীয় স্থান, ট্রিপ প্ল্যানার এবং কুইজ গেম নিয়ে কাজ চলছে।'
-                : 'We are actively building new interactive tools and adding more verified spots across all 13 upazilas of Dinajpur.'}
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {COMING_SOON_FEATURES.map((item, index) => (
-              <div
-                key={item.id}
-                className="bg-white rounded-2xl border border-slate-200/85 p-5 shadow-2xs flex flex-col justify-between gap-4 hover:border-emerald-500/50 transition-colors"
-              >
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-bold text-emerald-700 flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5" />
-                      <span>
-                        {lang === 'bn' ? item.tagBn : item.tagEn}
-                      </span>
-                    </span>
-                    <span className="text-slate-400 font-medium">
-                      0{index + 1} · {lang === 'bn' ? item.etaBn : item.etaEn}
-                    </span>
-                  </div>
-                  <h3 className="text-base sm:text-lg font-extrabold text-slate-900">
-                    {lang === 'bn' ? item.titleBn : item.titleEn}
-                  </h3>
-                  <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-                    {lang === 'bn' ? item.descBn : item.descEn}
-                  </p>
-                </div>
-
-                <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-                  <span className="text-[11px] font-semibold text-slate-400">
-                    {lang === 'bn'
-                      ? 'দিনাজপুর ট্রাভেল কমিউনিটি'
-                      : 'Dinajpur Travel Community'}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      showToast(
-                        lang === 'bn'
-                          ? `"${item.titleBn}" ফিচারটি খুব শীঘ্রই উন্মুক্ত করা হবে!`
-                          : `"${item.titleEn}" is coming soon!`
-                      )
-                    }
-                    className="text-xs font-bold text-emerald-700 hover:underline cursor-pointer"
-                  >
-                    {lang === 'bn'
-                      ? 'আপডেট পেতে যুক্ত থাকুন →'
-                      : 'Stay Tuned →'}
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
+        <InteractiveHubSection
+          lang={lang}
+          travelerName={travelerName}
+          onShowToast={showToast}
+          onOpenSpotDrawer={(spot) => setDrawerSpot(spot)}
+        />
       </main>
 
       {/* ================================================================ */}
@@ -1432,28 +1366,28 @@ export default function App() {
                     className="hover:text-emerald-700 transition-colors"
                   >
                     {lang === 'bn'
-                      ? '২৯টি দর্শনীয় স্থানের গাইড'
-                      : '29 Tourist Spots Guide'}
+                      ? 'দর্শনীয় স্থানের গাইড'
+                      : 'Tourist Spots Guide'}
                   </a>
                 </li>
                 <li>
                   <a
-                    href="#heritage-showcase-section"
+                    href="#trip-planner-section"
                     className="hover:text-emerald-700 transition-colors"
                   >
                     {lang === 'bn'
-                      ? 'ঐতিহাসিক কান্তজিউ মন্দির'
-                      : 'Historic Kantaji Temple'}
+                      ? 'ট্রিপ প্ল্যানার ও রুট গাইড'
+                      : 'Trip Planner & Route Guide'}
                   </a>
                 </li>
                 <li>
                   <a
-                    href="#coming-soon-section"
+                    href="#hidden-gems-section"
                     className="hover:text-emerald-700 transition-colors"
                   >
                     {lang === 'bn'
-                      ? 'আসন্ন ফিচার (Coming Soon)'
-                      : 'Upcoming Features (Coming Soon)'}
+                      ? 'লুকানো রত্ন ও বিখ্যাত খাবার'
+                      : 'Hidden Gems & Famous Food'}
                   </a>
                 </li>
               </ul>

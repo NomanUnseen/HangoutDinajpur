@@ -2740,7 +2740,7 @@ export const InteractiveHubSection: React.FC<InteractiveHubSectionProps> = ({
                     />
                   </div>
 
-                  {/* জেলা & উপজেলা / এলাকা */}
+                  {/* জেলা (শুধু দিনাজপুর) & উপজেলা / এলাকা */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-extrabold text-slate-800 mb-1.5">
@@ -2753,24 +2753,6 @@ export const InteractiveHubSection: React.FC<InteractiveHubSectionProps> = ({
                       >
                         <option value="দিনাজপুর">
                           {lang === 'bn' ? 'দিনাজপুর (Dinajpur)' : 'Dinajpur'}
-                        </option>
-                        <option value="ঠাকুরগাঁও">
-                          {lang === 'bn' ? 'ঠাকুরগাঁও' : 'Thakurgaon'}
-                        </option>
-                        <option value="পঞ্চগড়">
-                          {lang === 'bn' ? 'পঞ্চগড়' : 'Panchagarh'}
-                        </option>
-                        <option value="রংপুর">
-                          {lang === 'bn' ? 'রংপুর' : 'Rangpur'}
-                        </option>
-                        <option value="নীলফামারী">
-                          {lang === 'bn' ? 'নীলফামারী' : 'Nilphamari'}
-                        </option>
-                        <option value="জয়পুরহাট">
-                          {lang === 'bn' ? 'জয়পুরহাট' : 'Joypurhat'}
-                        </option>
-                        <option value="ঢাকা">
-                          {lang === 'bn' ? 'ঢাকা / অন্যান্য' : 'Dhaka / Other'}
                         </option>
                       </select>
                     </div>
@@ -3007,22 +2989,7 @@ export const InteractiveHubSection: React.FC<InteractiveHubSectionProps> = ({
                         className="w-full px-4 py-3 rounded-xl bg-[#FAF8F5] border border-slate-300/90 text-xs sm:text-sm font-bold text-slate-800 focus:bg-white focus:border-[#046a4e] focus:outline-none cursor-pointer"
                       >
                         <option value="দিনাজপুর">
-                          {lang === 'bn' ? 'দিনাজপুর' : 'Dinajpur'}
-                        </option>
-                        <option value="ঢাকা">
-                          {lang === 'bn' ? 'ঢাকা' : 'Dhaka'}
-                        </option>
-                        <option value="রংপুর">
-                          {lang === 'bn' ? 'রংপুর' : 'Rangpur'}
-                        </option>
-                        <option value="ঠাকুরগাঁও">
-                          {lang === 'bn' ? 'ঠাকুরগাঁও' : 'Thakurgaon'}
-                        </option>
-                        <option value="রাজশাহী">
-                          {lang === 'bn' ? 'রাজশাহী' : 'Rajshahi'}
-                        </option>
-                        <option value="অন্যান্য">
-                          {lang === 'bn' ? 'অন্যান্য জেলা' : 'Other District'}
+                          {lang === 'bn' ? 'দিনাজপুর (Dinajpur)' : 'Dinajpur'}
                         </option>
                       </select>
                     </div>
@@ -3305,8 +3272,8 @@ export const InteractiveHubSection: React.FC<InteractiveHubSectionProps> = ({
               </h3>
               <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
                 {lang === 'bn'
-                  ? 'এখানে কোনো ডামি ছবি রাখা হয়নি। উপরে "+ জায়গা যোগ করুন" বা "+ বিখ্যাত পণ্য বা খাবার যোগ করুন" বাটনে ক্লিক করে আপনিই প্রথম আপনার এলাকার লুকানো রত্ন বা বিখ্যাত খাবার যুক্ত করুন!'
-                  : 'No dummy photos are shown here. Click "+ Add a Hidden Place" or "+ Add Famous Product or Food" above to add the first entry!'}
+                  ? 'এখানে কোনো ডামি ছবি রাখা হয়নি। উপরে "+ নতুন দর্শনীয় স্থান যুক্ত করুন" বা "+ ঐতিহ্যবাহী খাবার বা পণ্য যুক্ত করুন" বাটনে ক্লিক করে আপনিই প্রথম আপনার এলাকার লুকানো রত্ন বা বিখ্যাত খাবার যুক্ত করুন!'
+                  : 'No dummy photos are shown here. Click "+ Add a Hidden Spot" or "+ Add Local Food or Specialty" above to add the first entry!'}
               </p>
             </div>
           ) : (
@@ -3324,7 +3291,7 @@ export const InteractiveHubSection: React.FC<InteractiveHubSectionProps> = ({
                     className="group bg-white rounded-3xl border border-[#e5e0d5] overflow-hidden shadow-2xs hover:shadow-md hover:border-[#046a4e]/50 transition-all flex flex-col justify-between cursor-pointer"
                   >
                     <div>
-                      {/* Cover Photo with Dark Pill Photo Count Badge (📷 ১০) */}
+                      {/* Cover Photo with Dark Pill Photo Count Badge */}
                       <div className="relative aspect-[16/10] bg-slate-900 overflow-hidden">
                         <img
                           src={item.coverImage}
@@ -3344,7 +3311,7 @@ export const InteractiveHubSection: React.FC<InteractiveHubSectionProps> = ({
                           {lang === 'bn' ? item.badgeBn : item.badgeEn}
                         </span>
 
-                        {/* Bottom-Right Photo Count Badge (Exact reference nod: 📷 ১০) */}
+                        {/* Bottom-Right Photo Count Badge */}
                         <span className="absolute bottom-3 right-3 px-2.5 py-1 rounded-full bg-black/75 backdrop-blur-xs text-white text-xs font-extrabold flex items-center gap-1.5">
                           <Camera className="w-3.5 h-3.5 text-emerald-300" />
                           <span>{formatNumber(item.photoCount, lang)}</span>

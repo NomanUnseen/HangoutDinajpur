@@ -33,6 +33,8 @@ import {
   HardDrive,
   Info,
   ExternalLink,
+  ShieldAlert,
+  PhoneCall,
 } from 'lucide-react';
 import {
   auth,
@@ -57,6 +59,7 @@ import {
 } from './components/SpotMapExplorer';
 import { DistrictTrackerSection } from './components/DistrictTrackerSection';
 import { InteractiveHubSection } from './components/InteractiveHubSection';
+import { EmergencyHelplineModal } from './components/EmergencyHelplineModal';
 
 const STORAGE_LANG_KEY = 'hangout_dinajpur_lang';
 const STORAGE_VISITED_KEY = 'hangout_dinajpur_visited_upazilas';
@@ -133,7 +136,7 @@ export default function App() {
   const [authErrorNotice, setAuthErrorNotice] = useState<string | null>(null);
   const [quickLoginName, setQuickLoginName] = useState('Tanjimul Noman');
   const [quickLoginEmail, setQuickLoginEmail] = useState(
-    'nomantanjimulislam@gmail.com'
+    'tanjimulislamnomann@gmail.com'
   );
 
   // Exact Site Visitor Count (Synced with Firestore /siteStats/visitors)
@@ -220,11 +223,25 @@ export default function App() {
   } | null>(null);
   const [uploadContributorName, setUploadContributorName] = useState('');
   const [isHobbyModalOpen, setIsHobbyModalOpen] = useState(false);
+  const [isEmergencyModalOpen, setIsEmergencyModalOpen] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
     setToastMsg(msg);
   };
+
+  useEffect(() => {
+    const handleOpenEmergency = () => setIsEmergencyModalOpen(true);
+    window.addEventListener(
+      'open-dinajpur-emergency-modal',
+      handleOpenEmergency
+    );
+    return () =>
+      window.removeEventListener(
+        'open-dinajpur-emergency-modal',
+        handleOpenEmergency
+      );
+  }, []);
 
   useEffect(() => {
     if (!toastMsg) return;
@@ -896,10 +913,42 @@ export default function App() {
             >
               {lang === 'bn' ? 'লুকানো রত্ন' : 'Hidden Gems'}
             </a>
+            <button
+              type="button"
+              onClick={() => setIsEmergencyModalOpen(true)}
+              className="px-3 py-1.5 rounded-full hover:bg-rose-100/80 text-rose-700 transition-colors whitespace-nowrap flex items-center gap-1 cursor-pointer font-bold"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse" />
+              <span>{lang === 'bn' ? 'জরুরি সেবা' : 'Emergency'}</span>
+            </button>
           </nav>
 
-          {/* Zone 3: Language Switcher + Google Login */}
+          {/* Zone 3: Emergency + Language Switcher + Google Login */}
           <div className="flex items-center gap-2 shrink-0">
+            {/* Direct Emergency Hotline Button with Pulsing Alert Badge */}
+            <button
+              type="button"
+              onClick={() => setIsEmergencyModalOpen(true)}
+              className="px-3 sm:px-3.5 py-1.5 rounded-full bg-rose-50 hover:bg-rose-100 border border-rose-300 text-xs font-black text-rose-800 shadow-2xs flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap"
+              title={
+                lang === 'bn'
+                  ? 'দিনাজপুর জরুরি হেল্পলাইন ও সাপোর্ট'
+                  : 'Dinajpur Emergency Hotline & Support'
+              }
+            >
+              <span className="relative flex h-2 w-2 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-red-600" />
+              </span>
+              <ShieldAlert className="w-3.5 h-3.5 text-red-600 shrink-0" />
+              <span className="hidden sm:inline">
+                {lang === 'bn' ? 'জরুরি হেল্পলাইন' : 'Emergency'}
+              </span>
+              <span className="sm:hidden font-black">
+                {lang === 'bn' ? '৯৯৯' : '999'}
+              </span>
+            </button>
+
             {/* Language Toggle Pill Button (Exact Match to Image 1 Top-Right) */}
             <button
               type="button"
@@ -993,7 +1042,7 @@ export default function App() {
         {/* ============================================================== */}
         {/* 1. HERO SECTION (Matches Reference Image 1 + Dynamic Sliders)  */}
         {/* ============================================================== */}
-        <section className="relative rounded-[28px] overflow-hidden min-h-[480px] sm:min-h-[540px] flex flex-col items-center justify-center text-center px-4 sm:px-10 py-12 sm:py-16 shadow-md border border-slate-800/10">
+        <section className="relative rounded-[24px] sm:rounded-[28px] overflow-hidden min-h-[440px] sm:min-h-[520px] flex flex-col items-center justify-center text-center px-3.5 sm:px-10 py-10 sm:py-16 shadow-md border border-slate-800/10">
           {/* Background Image Slider with Smooth Crossfade */}
           {HERO_SLIDES.map((slide, idx) => (
             <img
@@ -1008,19 +1057,19 @@ export default function App() {
           ))}
 
           {/* Atmospheric Dark Forest Scrim (Matches Image 1) */}
-          <div className="absolute inset-0 bg-gradient-to-b from-[#1e3129]/85 via-[#182922]/80 to-[#101e18]/92" />
+          <div className="absolute inset-0 bg-gradient-to-b from-[#1e3129]/90 via-[#182922]/85 to-[#101e18]/95" />
 
           {/* Hero Foreground Content */}
-          <div className="relative z-10 max-w-3xl mx-auto flex flex-col items-center">
+          <div className="relative z-10 w-full max-w-3xl mx-auto flex flex-col items-center px-1">
             {/* Top Subtle Badge: 13 Upazilas · 29 Spots */}
-            <div className="px-4 py-1.5 rounded-full bg-white/15 backdrop-blur-md border border-white/20 text-white text-xs sm:text-sm font-bold mb-6">
+            <div className="px-3.5 py-1 rounded-full bg-white/15 backdrop-blur-md border border-white/20 text-white text-[11px] sm:text-sm font-bold mb-4 sm:mb-6">
               {lang === 'bn'
                 ? '১৩টি উপজেলা · ২৯টি দর্শনীয় স্থান'
                 : '13 Upazilas · 29 Verified Spots'}
             </div>
 
-            {/* Main Display Headline (Matches Image 1 Dual-Tone Gradient Word) */}
-            <h1 className="text-3xl sm:text-5xl md:text-6xl font-black text-white tracking-tight leading-[1.18] text-balance">
+            {/* Main Display Headline (Responsive sizing so it never clips or overflows) */}
+            <h1 className="text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-black text-white tracking-tight leading-[1.2] px-2 text-balance break-words max-w-full">
               {lang === 'bn' ? (
                 <>
                   <span className="bg-gradient-to-r from-[#6ee7b7] via-[#fda4af] to-[#f87171] bg-clip-text text-transparent">
@@ -1039,15 +1088,15 @@ export default function App() {
               )}
             </h1>
 
-            {/* Subtitle Prose */}
-            <p className="text-sm sm:text-base md:text-lg text-white/85 max-w-xl mt-4 leading-relaxed font-medium">
+            {/* Subtitle Prose - Responsive padding & wrapping */}
+            <p className="text-xs sm:text-base md:text-lg text-white/90 max-w-xl mt-3 sm:mt-4 px-2 sm:px-4 leading-relaxed font-medium break-words">
               {lang === 'bn'
                 ? 'যে উপজেলাগুলোতে গিয়েছেন সেগুলো বেছে নিন, পছন্দের রঙের থিম দিন, আর ডাউনলোড করুন আপনার ভ্রমণের সুন্দর একটি ম্যাপ।'
                 : 'Select the upazilas you have visited, pick your favorite color theme, and download a beautiful personalized map of your travels.'}
             </p>
 
             {/* Dynamic Text Slider Box inside Hero */}
-            <div className="mt-5 w-full max-w-xl bg-black/30 backdrop-blur-md border border-white/15 rounded-2xl px-4 py-3 flex items-center justify-between gap-3">
+            <div className="mt-4 sm:mt-5 w-full max-w-lg bg-black/40 backdrop-blur-md border border-white/15 rounded-2xl px-3 py-2.5 sm:px-4 sm:py-3 flex items-center justify-between gap-2">
               <button
                 type="button"
                 onClick={() =>
@@ -1057,13 +1106,13 @@ export default function App() {
                   )
                 }
                 aria-label="Previous slide"
-                className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer shrink-0"
+                className="p-1 sm:p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer shrink-0"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
 
-              <div className="flex-1 min-w-0 text-center">
-                <div className="text-[11px] font-bold text-emerald-300 tracking-wide truncate">
+              <div className="flex-1 min-w-0 text-center px-1">
+                <div className="text-[10px] sm:text-[11px] font-bold text-emerald-300 tracking-wide truncate">
                   {lang === 'bn' ? activeSlide.badgeBn : activeSlide.badgeEn}
                 </div>
                 <div className="text-xs sm:text-sm font-bold text-white truncate mt-0.5">
@@ -1077,17 +1126,17 @@ export default function App() {
                   setHeroSlideIdx((prev) => (prev + 1) % HERO_SLIDES.length)
                 }
                 aria-label="Next slide"
-                className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer shrink-0"
+                className="p-1 sm:p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer shrink-0"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Primary CTA Button (Matches Image 1 White Pill Button) */}
-            <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
+            {/* Primary CTA Buttons (Full width on tiny screens, inline on tablet+) */}
+            <div className="mt-5 sm:mt-7 flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2.5 sm:gap-3 w-full sm:w-auto px-4 sm:px-0">
               <a
                 href="#upazila-tracker-section"
-                className="px-7 py-3.5 rounded-full bg-white hover:bg-slate-100 text-slate-950 font-extrabold text-sm sm:text-base shadow-lg transition-all flex items-center gap-2 whitespace-nowrap"
+                className="px-6 py-3 sm:px-7 sm:py-3.5 rounded-full bg-white hover:bg-slate-100 text-slate-950 font-extrabold text-xs sm:text-base shadow-lg transition-all flex items-center justify-center gap-2 whitespace-nowrap"
               >
                 <span>
                   {lang === 'bn'
@@ -1097,7 +1146,7 @@ export default function App() {
               </a>
               <a
                 href="#spot-map-section"
-                className="px-5 py-3.5 rounded-full bg-white/15 hover:bg-white/25 backdrop-blur-md border border-white/25 text-white font-bold text-sm transition-all whitespace-nowrap"
+                className="px-5 py-3 sm:py-3.5 rounded-full bg-white/15 hover:bg-white/25 backdrop-blur-md border border-white/25 text-white font-bold text-xs sm:text-sm transition-all flex items-center justify-center whitespace-nowrap"
               >
                 {lang === 'bn'
                   ? 'স্পট ম্যাপ গাইড দেখুন'
@@ -1105,42 +1154,42 @@ export default function App() {
               </a>
             </div>
 
-            {/* Exact Site Visitor Counter Pill (Matches Image 1) */}
-            <div className="mt-5 px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white/95 text-xs sm:text-sm font-semibold flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+            {/* Exact Site Visitor Counter Pill */}
+            <div className="mt-4 sm:mt-5 px-3 sm:px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white/95 text-[11px] sm:text-sm font-semibold flex items-center justify-center gap-2 max-w-full">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
               <span className="tabular-nums font-bold">
                 {formatNumber(visitorCount, lang)}
               </span>
-              <span>
+              <span className="truncate">
                 {lang === 'bn'
                   ? 'জন ইতিমধ্যে এই সাইট ও ম্যাপ ভিজিট করেছেন'
-                  : 'travelers have already visited & used this map'}
+                  : 'travelers have explored this map'}
               </span>
             </div>
 
-            {/* 3 Numbered Steps Row (Matches Image 1 Bottom of Hero) */}
-            <div className="mt-7 flex flex-wrap items-center justify-center gap-4 sm:gap-7 text-xs sm:text-sm text-white/85 font-semibold">
-              <div className="flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full border border-white/40 flex items-center justify-center text-[11px]">
+            {/* 3 Numbered Steps Row (Responsive wrap without clipping) */}
+            <div className="mt-5 sm:mt-7 flex flex-wrap items-center justify-center gap-2.5 sm:gap-7 text-[11px] sm:text-sm text-white/85 font-semibold px-2">
+              <div className="flex items-center gap-1.5">
+                <span className="w-4 h-4 sm:w-5 sm:h-5 rounded-full border border-white/40 flex items-center justify-center text-[10px] sm:text-[11px]">
                   {lang === 'bn' ? '১' : '1'}
                 </span>
                 <span>
                   {lang === 'bn' ? 'উপজেলা বাছাই করুন' : 'Select Upazilas'}
                 </span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full border border-white/40 flex items-center justify-center text-[11px]">
+              <div className="flex items-center gap-1.5">
+                <span className="w-4 h-4 sm:w-5 sm:h-5 rounded-full border border-white/40 flex items-center justify-center text-[10px] sm:text-[11px]">
                   {lang === 'bn' ? '২' : '2'}
                 </span>
                 <span>{lang === 'bn' ? 'থিম বেছে নিন' : 'Choose Theme'}</span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full border border-white/40 flex items-center justify-center text-[11px]">
+              <div className="flex items-center gap-1.5">
+                <span className="w-4 h-4 sm:w-5 sm:h-5 rounded-full border border-white/40 flex items-center justify-center text-[10px] sm:text-[11px]">
                   {lang === 'bn' ? '৩' : '3'}
                 </span>
                 <span>
                   {lang === 'bn'
-                    ? 'PNG, JPG বা PDF ডাউনলোড করুন'
+                    ? 'PNG, JPG বা PDF ডাউনলোড'
                     : 'Download PNG, JPG or PDF'}
                 </span>
               </div>
@@ -1317,6 +1366,45 @@ export default function App() {
       {/* ================================================================ */}
       <footer className="bg-white border-t border-slate-200/90 mt-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+          {/* Emergency Hotline Banner in Footer */}
+          <div className="mb-8 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-rose-50 via-red-50 to-amber-50 border border-rose-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-red-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                <ShieldAlert className="w-6 h-6 animate-pulse" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="text-sm sm:text-base font-extrabold text-slate-900">
+                    {lang === 'bn'
+                      ? 'দিনাজপুর জরুরি হেল্পলাইন ও সাপোর্ট'
+                      : 'Dinajpur Emergency Hotline & Support'}
+                  </h4>
+                  <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-800 text-[10px] font-black uppercase">
+                    {lang === 'bn' ? '২৪/৭ চালু' : '24/7 Active'}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  {lang === 'bn'
+                    ? 'পুলিশ (৯৯৯), ট্যুরিস্ট পুলিশ (০১৩২০-২২২২২২), মেডিকেল কলেজ জরুরি বিভাগ ও ফায়ার সার্ভিস নম্বর।'
+                    : 'Police (999), Tourist Police (01320-222222), Medical Emergency & Fire Rescue contacts.'}
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsEmergencyModalOpen(true)}
+              className="px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs shadow-xs flex items-center justify-center gap-2 transition-all cursor-pointer whitespace-nowrap"
+            >
+              <PhoneCall className="w-4 h-4" />
+              <span>
+                {lang === 'bn'
+                  ? 'জরুরি নম্বরগুলো দেখুন (View Hotline)'
+                  : 'Open Emergency Hotline (999)'}
+              </span>
+            </button>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-12 gap-8 pb-8 border-b border-slate-200/80">
             {/* Col 1: Brand & Mission */}
             <div className="md:col-span-5 space-y-3">
@@ -1350,6 +1438,20 @@ export default function App() {
                 {lang === 'bn' ? 'দ্রুত লিংক' : 'Quick Links'}
               </h4>
               <ul className="space-y-2 text-xs sm:text-sm text-slate-600 font-medium">
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => setIsEmergencyModalOpen(true)}
+                    className="hover:text-red-700 text-rose-700 font-bold transition-colors flex items-center gap-1.5 cursor-pointer text-left"
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse" />
+                    <span>
+                      {lang === 'bn'
+                        ? '🚨 জরুরি হেল্পলাইন ও সাপোর্ট'
+                        : '🚨 Emergency Hotline & Support'}
+                    </span>
+                  </button>
+                </li>
                 <li>
                   <a
                     href="#upazila-tracker-section"
@@ -2003,6 +2105,41 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* ================================================================ */}
+      {/* FLOATING QUICK EMERGENCY DIAL BUTTON (Always on screen)          */}
+      {/* ================================================================ */}
+      <div className="fixed bottom-5 left-4 sm:left-6 z-[1900]">
+        <button
+          type="button"
+          onClick={() => setIsEmergencyModalOpen(true)}
+          className="flex items-center gap-2 pl-3 pr-4 py-2.5 rounded-full bg-[#046a4e] hover:bg-[#03533d] text-white font-black text-xs sm:text-sm shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95 transition-all cursor-pointer border border-emerald-400/30"
+          title={
+            lang === 'bn'
+              ? 'দিনাজপুর জরুরি হেল্পলাইন ও সাপোর্ট (৯৯৯)'
+              : 'Dinajpur Emergency Hotline (999)'
+          }
+        >
+          <span className="relative flex h-2.5 w-2.5 shrink-0">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-80" />
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-400" />
+          </span>
+          <ShieldAlert className="w-4 h-4 shrink-0 text-emerald-100" />
+          <span>
+            {lang === 'bn' ? 'জরুরি সেবা (৯৯৯)' : 'Emergency (999)'}
+          </span>
+        </button>
+      </div>
+
+      {/* ================================================================ */}
+      {/* EMERGENCY HELPLINE MODAL (z-[2250])                              */}
+      {/* ================================================================ */}
+      <EmergencyHelplineModal
+        isOpen={isEmergencyModalOpen}
+        onClose={() => setIsEmergencyModalOpen(false)}
+        lang={lang}
+        onShowToast={showToast}
+      />
 
       {/* ================================================================ */}
       {/* TOAST NOTIFICATION                                               */}

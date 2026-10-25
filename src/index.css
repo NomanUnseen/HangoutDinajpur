@@ -42,6 +42,48 @@
   opacity: 0.94;
 }
 
+/* User Live GPS Pulsing Blue Dot (Uber style) */
+.user-gps-pulse-marker {
+  position: relative;
+  width: 22px;
+  height: 22px;
+}
+.user-gps-core {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 14px;
+  height: 14px;
+  background-color: #2563eb;
+  border: 2.5px solid #ffffff;
+  border-radius: 9999px;
+  box-shadow: 0 0 10px rgba(37, 99, 235, 0.7);
+  z-index: 2;
+}
+.user-gps-ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 28px;
+  height: 28px;
+  background-color: rgba(59, 130, 246, 0.35);
+  border-radius: 9999px;
+  animation: gpsPing 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+  z-index: 1;
+}
+@keyframes gpsPing {
+  0% {
+    transform: translate(-50%, -50%) scale(0.6);
+    opacity: 1;
+  }
+  75%, 100% {
+    transform: translate(-50%, -50%) scale(2.4);
+    opacity: 0;
+  }
+}
+
 /* Fix Leaflet Popup styling so it never clips or shows awkward borders */
 .leaflet-popup-content-wrapper {
   border-radius: 16px !important;

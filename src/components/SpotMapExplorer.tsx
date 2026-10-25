@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import L from 'leaflet';
 import {
   Search,
@@ -11,6 +11,13 @@ import {
   Cloud,
   HardDrive,
   Sparkles,
+  Crosshair,
+  Compass,
+  PhoneCall,
+  ShieldAlert,
+  Loader2,
+  Route,
+  ExternalLink,
 } from 'lucide-react';
 import {
   Language,
@@ -19,6 +26,7 @@ import {
   UPAZILAS,
   formatNumber,
 } from '../data/dinajpurData';
+import { WeatherForecastWidget } from './WeatherForecastWidget';
 
 export interface SpotPhotoRecord {
   id?: string;
@@ -97,10 +105,35 @@ const CATEGORY_CONFIG: Record<
 };
 
 const TILE_LAYERS = {
+  // Official Google Maps Roadmap (Roads, highways, towns, labels - Zero Watermark)
   google: 'https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
-  satellite: 'https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
-  osm: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+  // Google Hybrid (High-res Satellite with roads and landmark labels)
+  google_hybrid: 'https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+  // OpenStreetMap standard (Detailed road maps, rivers, local landmarks)
+  osm: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+  // Esri World Imagery (High-res Global Satellite)
+  satellite: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
 };
+
+// Haversine distance in kilometers
+function getDistanceFromLatLonInKm(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number {
+  const R = 6371; // Radius of the earth in km
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Number((R * c).toFixed(1));
+}
 
 export const SpotMapExplorer: React.FC<SpotMapExplorerProps> = ({
   lang,
@@ -112,30 +145,57 @@ export const SpotMapExplorer: React.FC<SpotMapExplorerProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedUpazila, setSelectedUpazila] = useState<string>('all');
-  const [mapLayer, setMapLayer] = useState<'google' | 'satellite' | 'osm'>('google');
+  const [mapLayer, setMapLayer] = useState<'google' | 'google_hybrid' | 'osm' | 'satellite'>('google');
   const [mobileView, setMobileView] = useState<'split' | 'map' | 'list'>('split');
   const [activeSpotId, setActiveSpotId] = useState<string | null>(null);
+
+  // Live Location & Uber GPS Navigation state
+  const [userLocation, setUserLocation] = useState<{
+    lat: number;
+    lng: number;
+    accuracy?: number;
+  } | null>(null);
+  const [isLocating, setIsLocating] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [sortByNearest, setSortByNearest] = useState(false);
+  const [activeRouteSpot, setActiveRouteSpot] = useState<TouristSpot | null>(null);
+  const [showEmergencyModal, setShowEmergencyModal] = useState(false);
 
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const tileLayerRef = useRef<L.TileLayer | null>(null);
   const markersRef = useRef<Record<string, L.Marker>>({});
+  const userMarkerRef = useRef<L.Marker | null>(null);
+  const userAccuracyCircleRef = useRef<L.Circle | null>(null);
+  const routeLineRef = useRef<L.Polyline | null>(null);
 
-  const filteredSpots = SPOTS.filter((spot) => {
-    const matchesCat = selectedCategory === 'all' || spot.category === selectedCategory;
-    const matchesUpazila = selectedUpazila === 'all' || spot.upazilaId === selectedUpazila;
-    if (!matchesCat || !matchesUpazila) return false;
-    if (!searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase();
-    return (
-      spot.nameBn.toLowerCase().includes(q) ||
-      spot.nameEn.toLowerCase().includes(q) ||
-      spot.upazilaBn.toLowerCase().includes(q) ||
-      spot.upazilaEn.toLowerCase().includes(q) ||
-      spot.descriptionBn.toLowerCase().includes(q) ||
-      spot.descriptionEn.toLowerCase().includes(q)
-    );
-  });
+  // Filter and optionally sort spots by nearest to user GPS
+  const filteredSpots = useMemo(() => {
+    const list = SPOTS.filter((spot) => {
+      const matchesCat = selectedCategory === 'all' || spot.category === selectedCategory;
+      const matchesUpazila = selectedUpazila === 'all' || spot.upazilaId === selectedUpazila;
+      if (!matchesCat || !matchesUpazila) return false;
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+        spot.nameBn.toLowerCase().includes(q) ||
+        spot.nameEn.toLowerCase().includes(q) ||
+        spot.upazilaBn.toLowerCase().includes(q) ||
+        spot.upazilaEn.toLowerCase().includes(q) ||
+        spot.descriptionBn.toLowerCase().includes(q) ||
+        spot.descriptionEn.toLowerCase().includes(q)
+      );
+    });
+
+    if (sortByNearest && userLocation) {
+      return [...list].sort((a, b) => {
+        const distA = getDistanceFromLatLonInKm(userLocation.lat, userLocation.lng, a.lat, a.lng);
+        const distB = getDistanceFromLatLonInKm(userLocation.lat, userLocation.lng, b.lat, b.lng);
+        return distA - distB;
+      });
+    }
+    return list;
+  }, [selectedCategory, selectedUpazila, searchQuery, sortByNearest, userLocation]);
 
   // Expose custom event listener for popup detail button clicks
   useEffect(() => {
@@ -170,38 +230,206 @@ export const SpotMapExplorer: React.FC<SpotMapExplorerProps> = ({
     L.control.zoom({ position: 'bottomright' }).addTo(instance);
     mapRef.current = instance;
 
+    // Immediately schedule size recalculation to prevent gray tiles
+    const timer1 = setTimeout(() => instance.invalidateSize(), 150);
+    const timer2 = setTimeout(() => instance.invalidateSize(), 500);
+
+    const handleWindowResize = () => {
+      instance.invalidateSize();
+    };
+    window.addEventListener('resize', handleWindowResize);
+
     return () => {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+      window.removeEventListener('resize', handleWindowResize);
       instance.remove();
       mapRef.current = null;
     };
   }, []);
 
-  // Update Tile Layer
+  // Invalidate size whenever mobile tab changes (e.g. split -> map)
+  useEffect(() => {
+    if (!mapRef.current) return;
+    const t = setTimeout(() => {
+      mapRef.current?.invalidateSize();
+    }, 120);
+    return () => clearTimeout(t);
+  }, [mobileView]);
+
+  // Update Tile Layer (100% Free, Zero API Key Required)
   useEffect(() => {
     if (!mapRef.current) return;
     if (tileLayerRef.current) {
       mapRef.current.removeLayer(tileLayerRef.current);
     }
 
-    if (mapLayer === 'satellite') {
-      tileLayerRef.current = L.tileLayer(TILE_LAYERS.satellite, {
-        subdomains: ['0', '1', '2', '3'],
-        maxZoom: 20,
-        attribution: '© Google Maps Satellite',
-      }).addTo(mapRef.current);
-    } else if (mapLayer === 'osm') {
-      tileLayerRef.current = L.tileLayer(TILE_LAYERS.osm, {
-        maxZoom: 19,
-        attribution: '© OpenStreetMap',
-      }).addTo(mapRef.current);
-    } else {
+    if (mapLayer === 'google') {
       tileLayerRef.current = L.tileLayer(TILE_LAYERS.google, {
         subdomains: ['0', '1', '2', '3'],
         maxZoom: 20,
-        attribution: '© Google Maps',
+        attribution: '&copy; Google Maps',
+      }).addTo(mapRef.current);
+    } else if (mapLayer === 'google_hybrid') {
+      tileLayerRef.current = L.tileLayer(TILE_LAYERS.google_hybrid, {
+        subdomains: ['0', '1', '2', '3'],
+        maxZoom: 20,
+        attribution: '&copy; Google Satellite &copy; Google Maps',
+      }).addTo(mapRef.current);
+    } else if (mapLayer === 'satellite') {
+      // Esri World Imagery - High Resolution Free Satellite (No API key required)
+      tileLayerRef.current = L.tileLayer(TILE_LAYERS.satellite, {
+        maxZoom: 19,
+        attribution: 'Esri World Imagery &copy; Esri & Earthstar Geographics',
+      }).addTo(mapRef.current);
+    } else {
+      // OpenStreetMap standard (100% Free & Open)
+      tileLayerRef.current = L.tileLayer(TILE_LAYERS.osm, {
+        subdomains: ['a', 'b', 'c'],
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors',
       }).addTo(mapRef.current);
     }
+
+    const t = setTimeout(() => {
+      mapRef.current?.invalidateSize();
+    }, 80);
+    return () => clearTimeout(t);
   }, [mapLayer]);
+
+  // Handle User Live GPS Location (Uber style pulsing blue dot)
+  const handleLocateUser = () => {
+    if (!navigator.geolocation) {
+      setLocationError(
+        lang === 'bn'
+          ? 'আপনার ব্রাউজারে GPS লোকেশন সাপোর্ট করে না।'
+          : 'Geolocation is not supported by your browser.'
+      );
+      return;
+    }
+
+    setIsLocating(true);
+    setLocationError(null);
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude, accuracy } = pos.coords;
+        const newCoords = { lat: latitude, lng: longitude, accuracy };
+        setUserLocation(newCoords);
+        setIsLocating(false);
+
+        if (mapRef.current) {
+          // Remove previous user marker and circle
+          if (userMarkerRef.current) mapRef.current.removeLayer(userMarkerRef.current);
+          if (userAccuracyCircleRef.current) mapRef.current.removeLayer(userAccuracyCircleRef.current);
+
+          // Add Pulsing Blue Dot Marker
+          const userGpsIcon = L.divIcon({
+            className: 'user-gps-div-icon',
+            html: `
+              <div class="user-gps-pulse-marker">
+                <div class="user-gps-ring"></div>
+                <div class="user-gps-core"></div>
+              </div>
+            `,
+            iconSize: [22, 22],
+            iconAnchor: [11, 11],
+          });
+
+          const uMarker = L.marker([latitude, longitude], { icon: userGpsIcon, zIndexOffset: 1000 });
+          uMarker.bindPopup(`
+            <div style="padding: 10px; font-family: sans-serif; text-align: center;">
+              <strong style="color: #2563eb; font-size: 13px;">📍 ${
+                lang === 'bn' ? 'আপনার বর্তমান অবস্থান' : 'Your Live Location'
+              }</strong>
+              <div style="font-size: 11px; color: #64748b; margin-top: 3px;">
+                ${lang === 'bn' ? 'জিপিএস একুরেসি:' : 'GPS Accuracy:'} ±${Math.round(accuracy)}m
+              </div>
+            </div>
+          `);
+          uMarker.addTo(mapRef.current);
+          userMarkerRef.current = uMarker;
+
+          // Add subtle accuracy circle
+          const accCircle = L.circle([latitude, longitude], {
+            radius: Math.min(accuracy, 1500),
+            color: '#3b82f6',
+            fillColor: '#60a5fa',
+            fillOpacity: 0.12,
+            weight: 1.5,
+          }).addTo(mapRef.current);
+          userAccuracyCircleRef.current = accCircle;
+
+          // Smoothly fly to user location
+          mapRef.current.flyTo([latitude, longitude], 13, { duration: 1.2 });
+        }
+      },
+      (err) => {
+        setIsLocating(false);
+        console.warn('Geolocation error:', err);
+        setLocationError(
+          lang === 'bn'
+            ? 'লোকেশন চালু করতে ব্রাউজারের Location Permission অনুমতি দিন।'
+            : 'Please allow Location permission in your browser.'
+        );
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 12000,
+        maximumAge: 10000,
+      }
+    );
+  };
+
+  // Draw or clear Uber navigation route polyline from user to spot
+  const handleToggleRouteToSpot = (spot: TouristSpot) => {
+    if (!mapRef.current) return;
+
+    if (activeRouteSpot?.id === spot.id) {
+      if (routeLineRef.current) {
+        mapRef.current.removeLayer(routeLineRef.current);
+        routeLineRef.current = null;
+      }
+      setActiveRouteSpot(null);
+      return;
+    }
+
+    if (!userLocation) {
+      handleLocateUser();
+    }
+
+    const startLat = userLocation ? userLocation.lat : 25.6279;
+    const startLng = userLocation ? userLocation.lng : 88.6332;
+
+    if (routeLineRef.current) {
+      mapRef.current.removeLayer(routeLineRef.current);
+    }
+
+    // Uber-style bold dynamic gradient polyline
+    const line = L.polyline(
+      [
+        [startLat, startLng],
+        [spot.lat, spot.lng],
+      ],
+      {
+        color: '#2563eb',
+        weight: 5,
+        opacity: 0.85,
+        dashArray: '8, 8',
+        lineCap: 'round',
+        lineJoin: 'round',
+      }
+    ).addTo(mapRef.current);
+
+    routeLineRef.current = line;
+    setActiveRouteSpot(spot);
+
+    const bounds = L.latLngBounds([
+      [startLat, startLng],
+      [spot.lat, spot.lng],
+    ]);
+    mapRef.current.fitBounds(bounds, { padding: [60, 60], maxZoom: 14 });
+  };
 
   // Render Map Markers & Popups cleanly in active language
   useEffect(() => {
@@ -253,6 +481,11 @@ export const SpotMapExplorer: React.FC<SpotMapExplorerProps> = ({
         ? 'ভেরিফাইড স্পট'
         : 'Verified Spot';
 
+      // Live distance from user GPS if available
+      const distanceKm = userLocation
+        ? getDistanceFromLatLonInKm(userLocation.lat, userLocation.lng, spot.lat, spot.lng)
+        : null;
+
       const titleText = lang === 'bn' ? spot.nameBn : spot.nameEn;
       const subTitleText = lang === 'bn' ? spot.nameEn : spot.nameBn;
       const upazilaText = lang === 'bn' ? spot.upazilaBn : spot.upazilaEn;
@@ -260,6 +493,11 @@ export const SpotMapExplorer: React.FC<SpotMapExplorerProps> = ({
       const descText = lang === 'bn' ? spot.descriptionBn : spot.descriptionEn;
       const detailBtnLabel = lang === 'bn' ? 'বিস্তারিত ও ছবি' : 'Details & Photos';
       const dirBtnLabel = lang === 'bn' ? 'ডিরেকশন' : 'Directions';
+      const distanceLabel = distanceKm !== null
+        ? lang === 'bn'
+          ? `📍 আপনার থেকে ${formatNumber(distanceKm, 'bn')} কি.মি.`
+          : `📍 ${distanceKm} km from you`
+        : null;
 
       const popupHtml = `
         <div style="width: 280px; overflow: hidden; background: #ffffff; color: #0f172a;">
@@ -287,8 +525,15 @@ export const SpotMapExplorer: React.FC<SpotMapExplorerProps> = ({
           `
           }
           <div style="padding: 14px;">
-            <div style="font-size: 11px; font-weight: 600; color: #059669; margin-bottom: 3px;">
-              ${upazilaText} · ${categoryText}
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 4px; margin-bottom: 3px;">
+              <div style="font-size: 11px; font-weight: 600; color: #059669;">
+                ${upazilaText} · ${categoryText}
+              </div>
+              ${
+                distanceLabel
+                  ? `<div style="font-size: 10px; font-weight: 700; color: #2563eb; background: #eff6ff; padding: 1px 6px; border-radius: 4px;">${distanceLabel}</div>`
+                  : ''
+              }
             </div>
             <h4 style="font-size: 15px; font-weight: 800; color: #0f172a; margin: 0; line-height: 1.3;">
               ${titleText}
@@ -311,9 +556,9 @@ export const SpotMapExplorer: React.FC<SpotMapExplorerProps> = ({
                 href="https://www.google.com/maps/dir/?api=1&destination=${spot.lat},${spot.lng}"
                 target="_blank"
                 rel="noopener noreferrer"
-                style="padding: 8px 12px; background: #f1f5f9; color: #1e293b; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 12px; font-weight: 700; text-decoration: none; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px;"
+                style="padding: 8px 12px; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; border-radius: 10px; font-size: 12px; font-weight: 700; text-decoration: none; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px;"
               >
-                <span>${dirBtnLabel}</span>
+                <span>📍 Google Maps</span>
                 <span>↗</span>
               </a>
             </div>
@@ -335,7 +580,7 @@ export const SpotMapExplorer: React.FC<SpotMapExplorerProps> = ({
       marker.addTo(mapRef.current!);
       markersRef.current[spot.id] = marker;
     });
-  }, [filteredSpots, lang, cloudPhotos, localPhotos, activeSpotId]);
+  }, [filteredSpots, lang, cloudPhotos, localPhotos, activeSpotId, userLocation]);
 
   const handleFitBounds = () => {
     if (!mapRef.current || filteredSpots.length === 0) return;
@@ -348,6 +593,12 @@ export const SpotMapExplorer: React.FC<SpotMapExplorerProps> = ({
     setSelectedCategory('all');
     setSelectedUpazila('all');
     setActiveSpotId(null);
+    setSortByNearest(false);
+    if (routeLineRef.current && mapRef.current) {
+      mapRef.current.removeLayer(routeLineRef.current);
+      routeLineRef.current = null;
+    }
+    setActiveRouteSpot(null);
     if (mapRef.current) {
       mapRef.current.closePopup();
       mapRef.current.setView([25.6279, 88.6332], 10);
@@ -403,6 +654,24 @@ export const SpotMapExplorer: React.FC<SpotMapExplorerProps> = ({
         <div className="flex items-center gap-2">
           <button
             type="button"
+            onClick={() =>
+              window.dispatchEvent(
+                new CustomEvent('open-dinajpur-emergency-modal')
+              )
+            }
+            className="px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200/90 text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-colors whitespace-nowrap cursor-pointer"
+            title={
+              lang === 'bn'
+                ? 'দিনাজপুর জরুরি হেল্পলাইন ও সাপোর্ট'
+                : 'Dinajpur Emergency Helpline'
+            }
+          >
+            <ShieldAlert className="w-3.5 h-3.5 text-rose-600" />
+            <span>{lang === 'bn' ? 'জরুরি সেবা' : 'Emergency'}</span>
+          </button>
+
+          <button
+            type="button"
             onClick={handleResetFilters}
             className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/90 text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-colors whitespace-nowrap cursor-pointer"
           >
@@ -411,6 +680,12 @@ export const SpotMapExplorer: React.FC<SpotMapExplorerProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Dinajpur Real-Time Weather & 3-Day Forecast Widget (OpenWeatherMap API) */}
+      <WeatherForecastWidget
+        lang={lang}
+        selectedUpazilaId={selectedUpazila}
+      />
 
       {/* Search & Filters Card */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs space-y-3">
@@ -730,7 +1005,38 @@ export const SpotMapExplorer: React.FC<SpotMapExplorerProps> = ({
                           </span>
                         </label>
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+                          {/* Uber Navigation Line preview button */}
+                          <button
+                            type="button"
+                            onClick={() => handleToggleRouteToSpot(spot)}
+                            title={lang === 'bn' ? 'উবার স্টাইল রুট লাইন' : 'Uber Style Route'}
+                            className={`p-1.5 rounded-lg border text-xs font-bold transition-colors cursor-pointer flex items-center gap-1 ${
+                              activeRouteSpot?.id === spot.id
+                                ? 'bg-blue-600 text-white border-blue-600'
+                                : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+                            }`}
+                          >
+                            <Route className="w-3 h-3" />
+                            <span className="hidden sm:inline">
+                              {activeRouteSpot?.id === spot.id
+                                ? lang === 'bn' ? 'রুট অন' : 'Route On'
+                                : lang === 'bn' ? 'রুট' : 'Route'}
+                            </span>
+                          </button>
+
+                          {/* Direct Google Maps Direction */}
+                          <a
+                            href={`https://www.google.com/maps/dir/?api=1&destination=${spot.lat},${spot.lng}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={lang === 'bn' ? 'গুগল ম্যাপে ডিরেকশন দেখুন' : 'Open in Google Maps'}
+                            className="p-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors flex items-center gap-1 text-[11px] font-bold cursor-pointer whitespace-nowrap"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                            <span className="hidden sm:inline">Google Maps</span>
+                          </a>
+
                           <button
                             type="button"
                             onClick={() => handleSelectSpotOnMap(spot)}
@@ -761,52 +1067,124 @@ export const SpotMapExplorer: React.FC<SpotMapExplorerProps> = ({
             mobileView === 'list' ? 'hidden lg:flex' : 'flex'
           } lg:col-span-7 relative rounded-2xl overflow-hidden border border-slate-200/90 shadow-2xs h-[460px] lg:h-[640px] bg-slate-200 flex-col z-10`}
         >
-          {/* Map Layer Switcher */}
-          <div className="absolute top-3 left-3 z-[400] flex items-center bg-white/95 backdrop-blur-md p-1 rounded-xl shadow-sm border border-slate-200 text-xs font-bold gap-1">
+          {/* Map Layer Switcher (Exact Google Maps, Google Hybrid, OpenStreetMap, Satellite HD - Zero Watermark) */}
+          <div className="absolute top-3 left-3 z-[400] flex items-center bg-white/95 backdrop-blur-md p-1 rounded-xl shadow-md border border-slate-200/90 text-xs font-bold gap-1 overflow-x-auto max-w-[calc(100%-110px)] no-scrollbar">
             <button
               type="button"
               onClick={() => setMapLayer('google')}
-              className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer whitespace-nowrap ${
+              className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap text-[11px] sm:text-xs font-bold flex items-center gap-1 ${
                 mapLayer === 'google'
-                  ? 'bg-emerald-700 text-white'
+                  ? 'bg-emerald-700 text-white shadow-xs'
                   : 'text-slate-700 hover:bg-slate-100'
               }`}
             >
-              Google Streets
+              <span>🗺️</span>
+              <span>{lang === 'bn' ? 'গুগল রোড' : 'Google Roads'}</span>
             </button>
             <button
               type="button"
-              onClick={() => setMapLayer('satellite')}
-              className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer whitespace-nowrap ${
-                mapLayer === 'satellite'
-                  ? 'bg-emerald-700 text-white'
+              onClick={() => setMapLayer('google_hybrid')}
+              className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap text-[11px] sm:text-xs font-bold flex items-center gap-1 ${
+                mapLayer === 'google_hybrid'
+                  ? 'bg-emerald-700 text-white shadow-xs'
                   : 'text-slate-700 hover:bg-slate-100'
               }`}
             >
-              Satellite
+              <span>🛰️</span>
+              <span>{lang === 'bn' ? 'গুগল হাইব্রিড' : 'Google Hybrid'}</span>
             </button>
             <button
               type="button"
               onClick={() => setMapLayer('osm')}
-              className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer whitespace-nowrap ${
+              className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap text-[11px] sm:text-xs font-bold flex items-center gap-1 ${
                 mapLayer === 'osm'
-                  ? 'bg-emerald-700 text-white'
+                  ? 'bg-emerald-700 text-white shadow-xs'
                   : 'text-slate-700 hover:bg-slate-100'
               }`}
             >
-              OSM
+              <span>🧭</span>
+              <span>{lang === 'bn' ? 'ওপেনস্ট্রিট' : 'OpenStreet'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMapLayer('satellite')}
+              className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap text-[11px] sm:text-xs font-bold flex items-center gap-1 ${
+                mapLayer === 'satellite'
+                  ? 'bg-emerald-700 text-white shadow-xs'
+                  : 'text-slate-700 hover:bg-slate-100'
+              }`}
+            >
+              <span>🌍</span>
+              <span>{lang === 'bn' ? 'স্যাটেলাইট' : 'Satellite'}</span>
             </button>
           </div>
 
-          {/* Fit All Bounds Button */}
-          <div className="absolute top-3 right-3 z-[400]">
+          {/* Top-Right Control Buttons: Fit All + Emergency Helpline */}
+          <div className="absolute top-3 right-3 z-[400] flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setShowEmergencyModal(true)}
+              title={lang === 'bn' ? 'জরুরি সেবা ও পুলিশ' : 'Emergency & Police Help'}
+              className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl shadow-sm border border-rose-200 transition-colors cursor-pointer"
+            >
+              <ShieldAlert className="w-4 h-4" />
+            </button>
             <button
               type="button"
               onClick={handleFitBounds}
-              className="px-3 py-1.5 bg-white/95 backdrop-blur-md rounded-xl shadow-sm border border-slate-200 text-slate-700 hover:text-emerald-700 transition-colors flex items-center gap-1.5 text-xs font-bold cursor-pointer whitespace-nowrap"
+              title={lang === 'bn' ? 'পুরো ম্যাপ দেখুন' : 'Fit All'}
+              className="px-2.5 py-1.5 bg-white/95 backdrop-blur-md rounded-xl shadow-sm border border-slate-200 text-slate-700 hover:text-emerald-700 transition-colors flex items-center gap-1 text-xs font-bold cursor-pointer whitespace-nowrap"
             >
               <Maximize2 className="w-3.5 h-3.5" />
-              <span>{lang === 'bn' ? 'ফুল ভিউ' : 'Fit All'}</span>
+              <span className="hidden sm:inline">{lang === 'bn' ? 'ফুল ভিউ' : 'Fit'}</span>
+            </button>
+          </div>
+
+          {/* Floating Uber-style GPS Locate Me Button & Nearest Sort Pill */}
+          <div className="absolute bottom-4 right-4 z-[400] flex flex-col items-end gap-2">
+            {locationError && (
+              <div className="bg-rose-900/90 text-white text-[10px] px-2.5 py-1.5 rounded-lg shadow-md max-w-[210px] leading-tight">
+                {locationError}
+              </div>
+            )}
+
+            {/* Sort by Nearest Spots toggle pill */}
+            {userLocation && (
+              <button
+                type="button"
+                onClick={() => setSortByNearest((prev) => !prev)}
+                className={`px-3 py-1.5 rounded-full text-xs font-extrabold shadow-md backdrop-blur-md flex items-center gap-1.5 transition-all cursor-pointer ${
+                  sortByNearest
+                    ? 'bg-emerald-600 text-white border border-emerald-400'
+                    : 'bg-white/95 text-slate-800 border border-slate-200 hover:bg-emerald-50'
+                }`}
+              >
+                <Compass className="w-3.5 h-3.5" />
+                <span>
+                  {sortByNearest
+                    ? lang === 'bn' ? 'সবচেয়ে কাছের স্পট আগে' : 'Nearest First (Active)'
+                    : lang === 'bn' ? 'কাছের স্পট দেখুন' : 'Sort by Nearest'}
+                </span>
+              </button>
+            )}
+
+            {/* Live GPS Target Button (Uber Style Pulse) */}
+            <button
+              type="button"
+              onClick={handleLocateUser}
+              disabled={isLocating}
+              title={lang === 'bn' ? 'আমার বর্তমান লাইভ লোকেশন অন করুন' : 'Find My Live GPS Location'}
+              className="w-12 h-12 rounded-full bg-white hover:bg-blue-50 text-blue-600 border border-slate-300 shadow-xl flex items-center justify-center transition-all duration-200 active:scale-95 cursor-pointer disabled:opacity-75"
+            >
+              {isLocating ? (
+                <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+              ) : (
+                <Crosshair
+                  className={`w-5 h-5 ${
+                    userLocation ? 'text-blue-600 fill-blue-500/20' : 'text-slate-700'
+                  }`}
+                />
+              )}
             </button>
           </div>
 
@@ -814,6 +1192,99 @@ export const SpotMapExplorer: React.FC<SpotMapExplorerProps> = ({
           <div ref={mapContainerRef} className="w-full h-full flex-1" />
         </div>
       </div>
+
+      {/* Emergency Helpline Modal for Dinajpur Tourists */}
+      {showEmergencyModal && (
+        <div className="fixed inset-0 z-[2200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 relative space-y-4">
+            <button
+              type="button"
+              onClick={() => setShowEmergencyModal(false)}
+              className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center border border-rose-200 shrink-0">
+                <ShieldAlert className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base sm:text-lg font-extrabold text-slate-900">
+                  {lang === 'bn' ? 'দিনাজপুর জরুরি হেল্পলাইন' : 'Dinajpur Emergency Helplines'}
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {lang === 'bn'
+                    ? 'ভ্রমণকালে যেকোনো জরুরি প্রয়োজনে সরাসরি কল করুন'
+                    : 'Direct hotlines for travelers in Dinajpur'}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2.5 pt-1 text-xs">
+              <a
+                href="tel:999"
+                className="flex items-center justify-between p-3 rounded-xl bg-slate-50 hover:bg-rose-50 border border-slate-200 hover:border-rose-300 transition-colors"
+              >
+                <div>
+                  <div className="font-bold text-slate-900">
+                    {lang === 'bn' ? 'জাতীয় জরুরি সেবা (পুলিশ, ফায়ার, অ্যাম্বুলেন্স)' : 'National Emergency (Police, Fire, Ambulance)'}
+                  </div>
+                  <div className="text-slate-500">Hotline 999 (24/7 Free)</div>
+                </div>
+                <PhoneCall className="w-4 h-4 text-rose-600" />
+              </a>
+
+              <a
+                href="tel:01320136698"
+                className="flex items-center justify-between p-3 rounded-xl bg-slate-50 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-300 transition-colors"
+              >
+                <div>
+                  <div className="font-bold text-slate-900">
+                    {lang === 'bn' ? 'দিনাজপুর জেলা পুলিশ কন্ট্রোল রুম' : 'Dinajpur District Police Control'}
+                  </div>
+                  <div className="text-slate-500">01320-136698 / 0531-64199</div>
+                </div>
+                <PhoneCall className="w-4 h-4 text-emerald-600" />
+              </a>
+
+              <a
+                href="tel:01716388909"
+                className="flex items-center justify-between p-3 rounded-xl bg-slate-50 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-300 transition-colors"
+              >
+                <div>
+                  <div className="font-bold text-slate-900">
+                    {lang === 'bn' ? 'দিনাজপুর মেডিকেল কলেজ হাসপাতাল' : 'Dinajpur Medical College Hospital'}
+                  </div>
+                  <div className="text-slate-500">দিনাজপুর সদর জরুরি বিভাগ</div>
+                </div>
+                <PhoneCall className="w-4 h-4 text-emerald-600" />
+              </a>
+
+              <a
+                href="tel:16122"
+                className="flex items-center justify-between p-3 rounded-xl bg-slate-50 hover:bg-sky-50 border border-slate-200 hover:border-sky-300 transition-colors"
+              >
+                <div>
+                  <div className="font-bold text-slate-900">
+                    {lang === 'bn' ? 'বাংলাদেশ রেলওয়ে হেল্পলাইন' : 'Bangladesh Railway Helpline'}
+                  </div>
+                  <div className="text-slate-500">ট্রেনের টিকিট ও শিডিউল তথ্য (16122)</div>
+                </div>
+                <PhoneCall className="w-4 h-4 text-sky-600" />
+              </a>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowEmergencyModal(false)}
+              className="w-full py-2.5 rounded-xl bg-slate-900 text-white font-bold text-xs hover:bg-slate-800 transition-colors cursor-pointer"
+            >
+              {lang === 'bn' ? 'ঠিক আছে' : 'Close'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Coming Soon Banner inside Map Section for Upcoming Spots */}
       <div className="bg-gradient-to-r from-emerald-900 via-teal-900 to-slate-900 text-white rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
